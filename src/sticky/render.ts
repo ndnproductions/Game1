@@ -1,5 +1,5 @@
-import type { StickyGame, Mark, CarriedItem } from './game'
-import { POCKETS, ROW_GROUND, ROW_ALPHA } from './game'
+import type { StickyGame, Mark, CarriedItem, Awareness } from './game'
+import { POCKETS, ORDER_COUNT, ROW_GROUND, ROW_ALPHA } from './game'
 import { ITEM_KINDS } from './items'
 
 export interface Layout {
@@ -7,6 +7,9 @@ export interface Layout {
   h: number
   pad: number
   headerH: number
+  ordersY: number
+  orderH: number
+  orderW: number
   laneY: number
   laneH: number
   pocketY: number
@@ -33,7 +36,15 @@ const C = {
   dim: '#8a93ad',
   gold: '#ffd93d',
   hot: '#ff5c7a',
-  ok: '#4ade80',
+  safe: '#4ade80',
+  junk: '#5a6377',
+}
+
+/** Head colour tells you the whole risk story at a glance. */
+const HEAD_COLOR: Record<Awareness, string | null> = {
+  distracted: C.safe,
+  neutral: null,
+  alert: C.hot,
 }
 
 interface Popup { x: number; y: number; text: string; color: string; t: number }
@@ -41,15 +52,19 @@ interface Flash { slot: number; t: number }
 
 export function computeLayout(w: number, h: number): Layout {
   const pad = Math.min(w, h) * 0.04
-  const headerH = Math.max(88, h * 0.14)
-  const pocketH = Math.max(84, h * 0.12)
-  const pocketY = h - pocketH - pad * 1.4
+  const headerH = Math.max(148, h * 0.235)
+  const orderH = Math.max(46, headerH * 0.29)
+  const orderW = (w - pad * 2 - pad * 0.4 * (ORDER_COUNT - 1)) / ORDER_COUNT
+  const ordersY = headerH - orderH - pad * 0.5
+  const pocketH = Math.max(84, h * 0.115)
+  const pocketY = h - pocketH - pad * 1.5
   const laneY = headerH
   const laneH = Math.max(120, pocketY - laneY - pad * 1.2)
   const pocketGap = pad * 0.45
   const pocketW = (w - pad * 2 - pocketGap * (POCKETS - 1)) / POCKETS
 
-  return { w, h, pad, headerH, laneY, laneH, pocketY, pocketH, pocketW, pocketGap,
+  return { w, h, pad, headerH, ordersY, orderH, orderW, laneY, laneH,
+           pocketY, pocketH, pocketW, pocketGap,
            bubbleR: Math.min(laneH * 0.062, w * 0.078) }
 }
 
@@ -105,14 +120,12 @@ export class Renderer {
     this.shakeAmount = Math.min(this.shakeAmount + amount, 20)
   }
 
-  /** Ground line for a row, and the figure height there. */
   groundY(row: number): number {
     const L = this.layout
     return L.laneY + L.laneH * ROW_GROUND[row]
   }
 
   figureH(mark: Mark): number {
-    // Deliberately modest: the crowd is scenery, the loot is the subject.
     return this.layout.laneH * 0.2 * mark.scale
   }
 
@@ -121,6 +134,16 @@ export class Renderer {
     const gy = this.groundY(mark.row) + bob
     const r = this.layout.bubbleR * mark.scale
     return { x: mark.x, y: gy - this.figureH(mark) - r * 1.35, r }
+  }
+
+  orderRect(i: number): { x: number; y: number; w: number; h: number } {
+    const L = this.layout
+    return { x: L.pad + i * (L.orderW + L.pad * 0.4), y: L.ordersY, w: L.orderW, h: L.orderH }
+  }
+
+  pocketRect(slot: number): { x: number; y: number; w: number; h: number } {
+    const L = this.layout
+    return { x: L.pad + slot * (L.pocketW + L.pocketGap), y: L.pocketY, w: L.pocketW, h: L.pocketH }
   }
 
   draw(game: StickyGame, dt: number): void {
@@ -140,9 +163,10 @@ export class Renderer {
 
     this.drawBackground()
     this.drawHeader(game)
+    this.drawOrders(game)
 
     const sorted = [...game.marks].sort((a, b) => a.row - b.row)
-    for (const m of sorted) this.drawMark(m)
+    for (const m of sorted) this.drawMark(m, game)
 
     this.drawLifts(game)
     this.drawPockets(game)
@@ -164,7 +188,6 @@ export class Renderer {
     ctx.fillStyle = g
     ctx.fillRect(0, 0, L.w, L.h)
 
-    // Faint pavement bands so the depth rows read as a street, not a void.
     for (const row of [0, 1, 2]) {
       const y = this.groundY(row)
       const next = row < 2 ? this.groundY(row + 1) : L.pocketY
@@ -184,22 +207,21 @@ export class Renderer {
   private drawHeader(game: StickyGame): void {
     const { ctx } = this
     const L = this.layout
-    const top = L.pad * 0.6
+    const top = L.pad * 0.5
 
     ctx.textBaseline = 'middle'
     ctx.textAlign = 'left'
     ctx.fillStyle = C.dim
-    ctx.font = `600 ${Math.round(L.headerH * 0.15)}px system-ui, sans-serif`
-    ctx.fillText(`BEST ${game.best}`, L.pad, top + L.headerH * 0.18)
+    ctx.font = `600 ${Math.round(L.headerH * 0.09)}px system-ui, sans-serif`
+    ctx.fillText(`BEST ${game.best}`, L.pad, top + L.headerH * 0.11)
 
     ctx.textAlign = 'center'
     ctx.fillStyle = C.text
-    ctx.font = `800 ${Math.round(L.headerH * 0.36)}px system-ui, sans-serif`
-    ctx.fillText(String(game.score), L.w / 2, top + L.headerH * 0.24)
+    ctx.font = `800 ${Math.round(L.headerH * 0.22)}px system-ui, sans-serif`
+    ctx.fillText(String(game.score), L.w / 2, top + L.headerH * 0.145)
 
-    // Suspicion bar
-    const barY = top + L.headerH * 0.52
-    const barH = Math.max(9, L.headerH * 0.13)
+    const barY = top + L.headerH * 0.3
+    const barH = Math.max(9, L.headerH * 0.075)
     const barW = L.w - L.pad * 2
     ctx.fillStyle = C.slot
     roundRect(ctx, L.pad, barY, barW, barH, barH / 2)
@@ -207,34 +229,64 @@ export class Renderer {
 
     const s = game.suspicion
     if (s > 0.012) {
-      const hue = 55 - s * 55
-      ctx.fillStyle = `hsl(${hue} 90% ${58 - s * 10}%)`
+      ctx.fillStyle = `hsl(${55 - s * 55} 90% ${58 - s * 10}%)`
       roundRect(ctx, L.pad, barY, Math.max(barH, barW * s), barH, barH / 2)
       ctx.fill()
     }
 
     ctx.textAlign = 'left'
     ctx.fillStyle = s > 0.75 ? C.hot : C.dim
-    ctx.font = `600 ${Math.round(L.headerH * 0.125)}px system-ui, sans-serif`
-    ctx.fillText('SUSPICION', L.pad, barY + barH + L.headerH * 0.15)
+    ctx.font = `600 ${Math.round(L.headerH * 0.075)}px system-ui, sans-serif`
+    ctx.fillText('SUSPICION', L.pad, barY + barH + L.headerH * 0.085)
 
     ctx.textAlign = 'right'
-    ctx.fillStyle = C.dim
-    ctx.fillText(`${game.freePockets} POCKETS FREE`, L.w - L.pad, barY + barH + L.headerH * 0.15)
+    ctx.fillStyle = game.freePockets === 0 ? C.hot : C.dim
+    ctx.fillText(`${game.freePockets} FREE`, L.w - L.pad, barY + barH + L.headerH * 0.085)
   }
 
-  private drawMark(mark: Mark): void {
+  /** The fence's list. Anything not on it is dead weight in your coat. */
+  private drawOrders(game: StickyGame): void {
+    const { ctx } = this
+
+    for (let i = 0; i < game.orders.length; i++) {
+      const o = game.orders[i]
+      const r = this.orderRect(i)
+      const kind = ITEM_KINDS[o.kind]
+      const have = game.progress(o)
+      const done = have >= o.need
+
+      ctx.fillStyle = C.slot
+      roundRect(ctx, r.x, r.y, r.w, r.h, r.h * 0.24)
+      ctx.fill()
+      ctx.strokeStyle = done ? C.safe : kind.color
+      ctx.lineWidth = done ? 3 : 1.5
+      roundRect(ctx, r.x, r.y, r.w, r.h, r.h * 0.24)
+      ctx.stroke()
+
+      ctx.textAlign = 'left'
+      ctx.textBaseline = 'middle'
+      ctx.font = `${Math.round(r.h * 0.52)}px system-ui, "Apple Color Emoji", "Noto Color Emoji", sans-serif`
+      ctx.fillText(kind.glyph, r.x + r.w * 0.12, r.y + r.h * 0.52)
+
+      ctx.fillStyle = have > 0 ? C.text : C.dim
+      ctx.font = `800 ${Math.round(r.h * 0.38)}px system-ui, sans-serif`
+      ctx.textAlign = 'right'
+      ctx.fillText(`${have}/${o.need}`, r.x + r.w * 0.88, r.y + r.h * 0.52)
+    }
+  }
+
+  private drawMark(mark: Mark, game: StickyGame): void {
     const { ctx } = this
     const bob = Math.sin(mark.bobPhase) * 2.5 * mark.scale
     const gy = this.groundY(mark.row) + bob
     const fh = this.figureH(mark)
     const bw = fh * 0.42
     const headR = fh * 0.17
+    const headY = gy - fh * 0.36 - fh * 0.46 - headR * 0.85
 
     ctx.save()
     ctx.globalAlpha = ROW_ALPHA[mark.row]
 
-    // legs
     ctx.fillStyle = mark.bodyColor
     const legH = fh * 0.36
     const swing = Math.sin(mark.bobPhase) * bw * 0.18
@@ -243,28 +295,40 @@ export class Renderer {
     roundRect(ctx, mark.x + bw * 0.06 - swing, gy - legH, bw * 0.26, legH, bw * 0.13)
     ctx.fill()
 
-    // torso
     const torsoH = fh * 0.46
     roundRect(ctx, mark.x - bw / 2, gy - legH - torsoH, bw, torsoH, bw * 0.28)
     ctx.fill()
 
-    // head
+    if (mark.awareness === 'alert') {
+      const pulse = 0.5 + 0.5 * Math.sin(performance.now() / 110)
+      ctx.strokeStyle = `rgba(255,92,122,${0.3 + pulse * 0.5})`
+      ctx.lineWidth = headR * 0.4
+      ctx.beginPath()
+      ctx.arc(mark.x, headY, headR * (1.7 + pulse * 0.2), 0, Math.PI * 2)
+      ctx.stroke()
+    }
+
+    ctx.fillStyle = HEAD_COLOR[mark.awareness] ?? mark.bodyColor
     ctx.beginPath()
-    ctx.arc(mark.x, gy - legH - torsoH - headR * 0.85, headR, 0, Math.PI * 2)
+    ctx.arc(mark.x, headY, headR, 0, Math.PI * 2)
     ctx.fill()
 
     ctx.restore()
 
-    if (mark.item) this.drawBubble(mark, mark.item)
+    if (mark.item) this.drawBubble(mark, mark.item, game.isWanted(mark.item.kind))
   }
 
-  private drawBubble(mark: Mark, item: CarriedItem): void {
+  private drawBubble(mark: Mark, item: CarriedItem, wanted: boolean): void {
     const { ctx } = this
     const { x, y, r } = this.bubblePos(mark)
     const kind = ITEM_KINDS[item.kind]
     const t = performance.now() / 1000
 
-    if (item.hot) {
+    // Junk is drawn washed out on purpose: knowing what to ignore is the skill.
+    ctx.save()
+    ctx.globalAlpha = wanted ? 1 : 0.4
+
+    if (item.hot && wanted) {
       const pulse = 0.5 + 0.5 * Math.sin(t * 5)
       ctx.strokeStyle = `rgba(255,92,122,${0.35 + pulse * 0.5})`
       ctx.lineWidth = r * 0.22
@@ -278,8 +342,8 @@ export class Renderer {
     ctx.arc(x, y, r, 0, Math.PI * 2)
     ctx.fill()
 
-    ctx.strokeStyle = item.hot ? C.hot : kind.color
-    ctx.lineWidth = Math.max(2, r * 0.14)
+    ctx.strokeStyle = !wanted ? C.junk : item.hot ? C.hot : kind.color
+    ctx.lineWidth = Math.max(2, r * (wanted ? 0.16 : 0.09))
     ctx.beginPath()
     ctx.arc(x, y, r, 0, Math.PI * 2)
     ctx.stroke()
@@ -288,6 +352,7 @@ export class Renderer {
     ctx.textBaseline = 'middle'
     ctx.font = `${Math.round(r * 1.15)}px system-ui, "Apple Color Emoji", "Noto Color Emoji", sans-serif`
     ctx.fillText(kind.glyph, x, y + r * 0.06)
+    ctx.restore()
   }
 
   private drawLifts(game: StickyGame): void {
@@ -318,16 +383,6 @@ export class Renderer {
     }
   }
 
-  pocketRect(slot: number): { x: number; y: number; w: number; h: number } {
-    const L = this.layout
-    return {
-      x: L.pad + slot * (L.pocketW + L.pocketGap),
-      y: L.pocketY,
-      w: L.pocketW,
-      h: L.pocketH,
-    }
-  }
-
   private drawPockets(game: StickyGame): void {
     const { ctx } = this
     const L = this.layout
@@ -336,7 +391,7 @@ export class Renderer {
     ctx.textBaseline = 'middle'
     ctx.fillStyle = C.dim
     ctx.font = `600 ${Math.round(L.pocketH * 0.16)}px system-ui, sans-serif`
-    ctx.fillText('COAT', L.pad, L.pocketY - L.pad * 0.62)
+    ctx.fillText('COAT — TAP TO DITCH', L.pad, L.pocketY - L.pad * 0.62)
 
     for (let slot = 0; slot < POCKETS; slot++) {
       const r = this.pocketRect(slot)
@@ -347,16 +402,27 @@ export class Renderer {
       ctx.fill()
 
       if (item) {
+        const wanted = game.isWanted(item.kind)
         const kind = ITEM_KINDS[item.kind]
-        ctx.strokeStyle = item.hot ? C.hot : kind.color
+        ctx.strokeStyle = !wanted ? C.junk : item.hot ? C.hot : kind.color
         ctx.lineWidth = Math.max(2, r.w * 0.06)
         roundRect(ctx, r.x, r.y, r.w, r.h, r.w * 0.24)
         ctx.stroke()
 
+        ctx.save()
+        ctx.globalAlpha = wanted ? 1 : 0.4
         ctx.textAlign = 'center'
         ctx.textBaseline = 'middle'
-        ctx.font = `${Math.round(Math.min(r.w, r.h) * 0.52)}px system-ui, "Apple Color Emoji", "Noto Color Emoji", sans-serif`
-        ctx.fillText(kind.glyph, r.x + r.w / 2, r.y + r.h / 2)
+        ctx.font = `${Math.round(Math.min(r.w, r.h) * 0.5)}px system-ui, "Apple Color Emoji", "Noto Color Emoji", sans-serif`
+        ctx.fillText(kind.glyph, r.x + r.w / 2, r.y + r.h * 0.46)
+        ctx.restore()
+
+        if (!wanted) {
+          ctx.fillStyle = C.junk
+          ctx.textAlign = 'center'
+          ctx.font = `700 ${Math.round(r.h * 0.16)}px system-ui, sans-serif`
+          ctx.fillText('JUNK', r.x + r.w / 2, r.y + r.h * 0.85)
+        }
       }
 
       const flash = this.flashes.find((f) => f.slot === slot)
@@ -376,7 +442,7 @@ export class Renderer {
       ctx.fillStyle = p.color
       ctx.textAlign = 'center'
       ctx.textBaseline = 'middle'
-      ctx.font = `800 ${Math.round(L.pocketH * (0.38 + p.t * 0.1))}px system-ui, sans-serif`
+      ctx.font = `800 ${Math.round(L.pocketH * (0.34 + p.t * 0.1))}px system-ui, sans-serif`
       ctx.fillText(p.text, p.x, p.y - p.t * L.pocketH * 0.9)
       ctx.globalAlpha = 1
     }
@@ -398,10 +464,7 @@ export class Renderer {
 
     ctx.fillStyle = C.dim
     ctx.font = `500 ${Math.round(L.w * 0.042)}px system-ui, sans-serif`
-    ctx.fillText(
-      game.over === 'suspicion' ? 'They were watching you.' : 'Your coat gave you away.',
-      L.w / 2, L.h * 0.34,
-    )
+    ctx.fillText('They were watching you.', L.w / 2, L.h * 0.34)
 
     ctx.fillStyle = C.text
     ctx.font = `800 ${Math.round(L.w * 0.17)}px system-ui, sans-serif`
@@ -412,7 +475,6 @@ export class Renderer {
     let y = L.h * 0.58
 
     if (!game.bribeUsed) {
-      // The fail offer, in fiction. This is the moment the genre monetises.
       const x = L.w / 2 - bw / 2
       ctx.fillStyle = C.gold
       roundRect(ctx, x, y, bw, bh, bh * 0.28)

@@ -1,5 +1,6 @@
 import { StickyGame } from './game'
-import type { Mark } from './game'
+import type { Mark, LiftResult } from './game'
+import { POCKETS } from './game'
 import { Renderer } from './render'
 import { ITEM_KINDS } from './items'
 import {
@@ -12,22 +13,39 @@ if (!canvas) throw new Error('#game canvas missing')
 const game = new StickyGame()
 const renderer = new Renderer(canvas)
 
-function handleMerge(merged: NonNullable<ReturnType<StickyGame['lift']>>['merged']): void {
-  if (!merged) return
-  renderer.flash(merged.slots)
-  renderer.shake(merged.hot ? 9 : 5)
-  playClear(merged.hot ? 3 : 2, 0)
-  vibrate([0, 16, 36, 20])
-
-  const L = renderer.layout
-  const label = merged.hot ? `+${merged.points} HOT` : `+${merged.points}`
-  renderer.popup(label, L.w / 2, L.pocketY - L.pad * 2, merged.hot ? '#ff5c7a' : '#ffd93d')
-}
-
 function bust(): void {
   playGameOver()
   vibrate([0, 70, 90, 70])
   renderer.shake(16)
+}
+
+function reportLift(result: LiftResult, at: { x: number; y: number }): void {
+  if (result.awareness === 'alert') {
+    renderer.popup('SPOTTED', at.x, at.y, '#ff5c7a')
+    renderer.shake(11)
+    playInvalid()
+    vibrate([0, 40, 30, 40])
+  } else {
+    playPickUp()
+    vibrate(8)
+    if (result.awareness === 'distracted') renderer.popup('CLEAN', at.x, at.y, '#4ade80')
+  }
+
+  if (result.junk) renderer.popup('JUNK', at.x, at.y + 26, '#8a93ad')
+
+  const filled = result.filled
+  if (filled) {
+    renderer.flash(filled.slots)
+    renderer.shake(filled.hotCount ? 9 : 5)
+    playClear(filled.hotCount ? 3 : 2, 0)
+    vibrate([0, 16, 36, 20])
+    const L = renderer.layout
+    renderer.popup(
+      `+${filled.points}`,
+      L.w / 2, L.pocketY - L.pad * 2,
+      filled.hotCount ? '#ff5c7a' : '#ffd93d',
+    )
+  }
 }
 
 /** Front-row marks win ties, since they are the ones under the finger. */
@@ -52,6 +70,14 @@ function pickMark(x: number, y: number): Mark | null {
   return best
 }
 
+function pickPocket(x: number, y: number): number | null {
+  for (let slot = 0; slot < POCKETS; slot++) {
+    const r = renderer.pocketRect(slot)
+    if (x > r.x && x < r.x + r.w && y > r.y - r.h * 0.25 && y < r.y + r.h) return slot
+  }
+  return null
+}
+
 canvas.addEventListener('pointerdown', (e) => {
   e.preventDefault()
   unlockAudio()
@@ -69,24 +95,35 @@ canvas.addEventListener('pointerdown', (e) => {
     return
   }
 
+  const slot = pickPocket(e.clientX, e.clientY)
+  if (slot !== null) {
+    const dropped = game.ditch(slot)
+    if (dropped) {
+      const r = renderer.pocketRect(slot)
+      renderer.popup('DITCHED', r.x + r.w / 2, r.y - r.h * 0.4, '#8a93ad')
+      playInvalid()
+      vibrate(18)
+      if (game.over) bust()
+    }
+    return
+  }
+
   const mark = pickMark(e.clientX, e.clientY)
   if (!mark) return
 
   const b = renderer.bubblePos(mark)
-  const events = game.lift(mark, b.x, b.y)
+  const result = game.lift(mark, b.x, b.y)
 
-  if (!events) {
+  if (!result) {
     playInvalid()
     vibrate(30)
     renderer.shake(6)
-    renderer.popup('NO ROOM', b.x, b.y, '#ff5c7a')
+    renderer.popup('COAT FULL', b.x, b.y, '#ff5c7a')
     return
   }
 
-  playPickUp()
-  vibrate(9)
-  handleMerge(events.merged)
-  if (events.busted) bust()
+  reportLift(result, b)
+  if (game.over) bust()
 })
 
 const onResize = (): void => renderer.resize()
@@ -99,8 +136,7 @@ function frame(now: number): void {
   const dt = Math.min((now - last) / 1000, 0.05)
   last = now
 
-  const events = game.step(dt, renderer.layout.w)
-  if (events.busted) bust()
+  if (game.step(dt, renderer.layout.w).busted) bust()
 
   renderer.draw(game, dt)
   requestAnimationFrame(frame)
