@@ -1,0 +1,338 @@
+<title>Unity Field Manual</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&family=JetBrains+Mono:wght@400;500;700&display=swap">
+
+<style>
+  :root {
+    --paper:     #EFF2F6;
+    --card:      #FAFBFD;
+    --sunk:      #E4E9F0;
+    --ink:       #131722;
+    --ink-soft:  #4C5566;
+    --ink-faint: #78829490;
+    --ink-mid:   #788294;
+    --rule:      #D4DAE4;
+    --rule-soft: #E3E8EF;
+    --accent:    #8A6100;
+    --accent-bg: #F5E9CC;
+    --steel:     #2B6C8C;
+    --steel-bg:  #DCE9F0;
+    --warn:      #A2472B;
+    --warn-bg:   #F6E2DA;
+    --good:      #2F6B4F;
+    --good-bg:   #DCEDE3;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper:     #0F1219;
+      --card:      #171C26;
+      --sunk:      #10141C;
+      --ink:       #E9ECF2;
+      --ink-soft:  #A3ACBC;
+      --ink-faint: #6E778890;
+      --ink-mid:   #6E7788;
+      --rule:      #2A313E;
+      --rule-soft: #1F2530;
+      --accent:    #FFCE45;
+      --accent-bg: #33280A;
+      --steel:     #74B8D8;
+      --steel-bg:  #122A36;
+      --warn:      #E68B6C;
+      --warn-bg:   #34190F;
+      --good:      #6FCF9B;
+      --good-bg:   #122A1E;
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper:     #0F1219;
+    --card:      #171C26;
+    --sunk:      #10141C;
+    --ink:       #E9ECF2;
+    --ink-soft:  #A3ACBC;
+    --ink-faint: #6E778890;
+    --ink-mid:   #6E7788;
+    --rule:      #2A313E;
+    --rule-soft: #1F2530;
+    --accent:    #FFCE45;
+    --accent-bg: #33280A;
+    --steel:     #74B8D8;
+    --steel-bg:  #122A36;
+    --warn:      #E68B6C;
+    --warn-bg:   #34190F;
+    --good:      #6FCF9B;
+    --good-bg:   #122A1E;
+  }
+
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: 'Source Serif 4', Georgia, serif;
+    font-size: 18px;
+    line-height: 1.62;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 62rem; margin: 0 auto; padding: 3.5rem 1.5rem 6rem; }
+  @media (max-width: 40rem) { .wrap { padding: 2.25rem 1.05rem 4rem; } }
+
+  h1, h2, h3, .num, th, .chip, .tool-name { font-family: Archivo, 'Helvetica Neue', Arial, sans-serif; }
+  .mono, code, .cost, td.mono, .eyebrow, .chip, .stat-k { font-family: 'JetBrains Mono', ui-monospace, Menlo, monospace; }
+
+  .eyebrow {
+    font-size: .68rem; font-weight: 500; letter-spacing: .18em;
+    text-transform: uppercase; color: var(--steel);
+  }
+  h1 {
+    font-size: clamp(2.4rem, 7.5vw, 4.1rem); font-weight: 800;
+    letter-spacing: -.032em; line-height: .96; margin: .55rem 0 0; text-wrap: balance;
+  }
+  .lede {
+    font-size: clamp(1.12rem, 2.5vw, 1.35rem); line-height: 1.5;
+    color: var(--ink-soft); max-width: 38ch; margin-top: 1.1rem;
+  }
+  .lede b { color: var(--ink); font-weight: 600; }
+
+  section { margin-top: 4rem; }
+  .sec-head { border-top: 2px solid var(--ink); padding-top: .85rem; margin-bottom: 1.5rem; }
+  h2 {
+    font-size: clamp(1.45rem, 3.4vw, 1.95rem); font-weight: 800; letter-spacing: -.022em;
+    line-height: 1.12; margin: .1rem 0 0; text-wrap: balance;
+  }
+  h3 { font-size: 1.06rem; font-weight: 700; letter-spacing: -.01em; margin: 0; }
+  p { margin: 0 0 1rem; max-width: 64ch; }
+  p:last-child { margin-bottom: 0; }
+  b, strong { font-weight: 600; }
+  code {
+    font-size: .84em; background: var(--sunk); padding: .12em .38em;
+    border-radius: 4px; border: 1px solid var(--rule-soft);
+  }
+
+  .verdict { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); }
+  .vcard { background: var(--card); border: 1px solid var(--rule); border-radius: 9px; padding: 1.15rem 1.2rem 1.25rem; }
+  .vcard h3 { margin-bottom: .4rem; }
+  .vcard p { font-size: .93rem; color: var(--ink-soft); margin: 0; }
+  .vcard.no h3 { color: var(--warn); }
+  .vcard.yes h3 { color: var(--good); }
+  .vcard.key { border-color: var(--accent); border-width: 2px; }
+  .vcard.key h3 { color: var(--accent); }
+
+  ol.phases { list-style: none; padding: 0; margin: 0; display: grid; gap: 1px; background: var(--rule); border: 1px solid var(--rule); border-radius: 9px; overflow: hidden; }
+  ol.phases > li { background: var(--card); padding: 1.1rem 1.2rem; display: grid; gap: .15rem .95rem;
+                   grid-template-columns: 2.1rem 1fr auto; align-items: baseline; }
+  .num { font-family: 'JetBrains Mono', monospace; font-size: .82rem; font-weight: 700;
+         color: var(--steel); font-variant-numeric: tabular-nums; }
+  .phase-t { font-family: Archivo, sans-serif; font-weight: 700; font-size: 1.04rem; letter-spacing: -.012em; }
+  .hrs { font-family: 'JetBrains Mono', monospace; font-size: .78rem; color: var(--ink-mid);
+         font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .phase-d { grid-column: 2 / -1; font-size: .94rem; color: var(--ink-soft); margin-top: .3rem; }
+  .phase-d .tool-name { font-family: 'JetBrains Mono', monospace; font-size: .85em; color: var(--ink); }
+  @media (max-width: 34rem) {
+    ol.phases > li { grid-template-columns: 1.9rem 1fr; }
+    .hrs { grid-column: 2; grid-row: 2; margin-bottom: .2rem; }
+    .phase-d { grid-column: 1 / -1; }
+  }
+
+  .tbl { overflow-x: auto; border: 1px solid var(--rule); border-radius: 9px; }
+  table { border-collapse: collapse; width: 100%; min-width: 36rem; background: var(--card); }
+  th, td { text-align: left; padding: .72rem .95rem; border-bottom: 1px solid var(--rule-soft); font-size: .92rem; vertical-align: top; }
+  th { font-size: .64rem; letter-spacing: .11em; text-transform: uppercase; color: var(--ink-mid); font-weight: 700; white-space: nowrap; }
+  tr:last-child td { border-bottom: 0; }
+  td.mono, .cost { font-size: .82rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+  .chip { display: inline-block; font-size: .6rem; font-weight: 700; letter-spacing: .07em;
+          text-transform: uppercase; padding: .26rem .5rem; border-radius: 999px; white-space: nowrap; }
+  .chip.free { background: var(--good-bg); color: var(--good); }
+  .chip.paid { background: var(--steel-bg); color: var(--steel); }
+  .chip.care { background: var(--warn-bg); color: var(--warn); }
+
+  .callout { border-left: 3px solid var(--warn); background: var(--warn-bg); padding: 1rem 1.2rem;
+             border-radius: 0 8px 8px 0; }
+  .callout p { margin: 0; font-size: .95rem; }
+  .callout .eyebrow { color: var(--warn); display: block; margin-bottom: .35rem; }
+
+  .totals { display: grid; gap: 1px; background: var(--rule); border: 1px solid var(--rule);
+            border-radius: 9px; overflow: hidden; grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr)); }
+  .tot { background: var(--card); padding: 1rem 1.1rem 1.15rem; }
+  .stat-k { display: block; font-size: 1.5rem; font-weight: 700; letter-spacing: -.03em;
+            font-variant-numeric: tabular-nums; line-height: 1; color: var(--ink); }
+  .stat-l { display: block; font-size: .64rem; letter-spacing: .08em; text-transform: uppercase;
+            color: var(--ink-mid); margin-top: .45rem; font-family: 'JetBrains Mono', monospace; line-height: 1.5; }
+
+  a { color: var(--steel); text-decoration: underline; text-underline-offset: 2px; }
+  a:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 2px; }
+</style>
+
+<div class="wrap">
+
+  <header>
+    <span class="eyebrow">Production manual · Sticky Fingers</span>
+    <h1>Unity Field Manual</h1>
+    <p class="lede">Unity will not make your game look good. <b>It draws exactly what you hand it</b> — the polish comes from art, animation and sound you buy or commission, and from a juice pass you build yourself.</p>
+  </header>
+
+  <section>
+    <div class="sec-head">
+      <span class="eyebrow">First, the correction</span>
+      <h2>What the engine does and doesn't do</h2>
+    </div>
+    <div class="verdict">
+      <div class="vcard yes">
+        <h3>What Unity gives you</h3>
+        <p>A renderer, an animation system, particles, audio mixing, touch input, a UI layout system, and one-button export to both stores. All the plumbing you would otherwise write.</p>
+      </div>
+      <div class="vcard no">
+        <h3>What it does not give you</h3>
+        <p>Taste, art, characters, sound, or motion design. A Unity game built from default shapes looks exactly like a game built from default shapes.</p>
+      </div>
+      <div class="vcard key">
+        <h3>What actually makes it look expensive</h3>
+        <p>Character art with real animation, a coherent UI kit, sound on every interaction, and tweened motion on everything that moves. That is the work — the engine only makes it possible.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <span class="eyebrow">The pipeline · in order, each step depends on the last</span>
+      <h2>Prototype to store, A to Z</h2>
+    </div>
+    <ol class="phases">
+      <li>
+        <span class="num">01</span><span class="phase-t">Install and set up</span><span class="hrs">~2h</span>
+        <span class="phase-d">Unity Hub, then the current LTS release. Create a <span class="tool-name">2D (URP)</span> project and add the iOS and Android build modules during install — adding them later means a long re-download.</span>
+      </li>
+      <li>
+        <span class="num">02</span><span class="phase-t">Port the rules</span><span class="hrs">~6h</span>
+        <span class="phase-d">Translate <span class="tool-name">game.ts</span> into plain C# classes. This is the cheap part: the file is pure logic with no drawing or input in it, so the stage curve, suspicion economy and pocket rules move over almost line for line.</span>
+      </li>
+      <li>
+        <span class="num">03</span><span class="phase-t">Rebuild the screen</span><span class="hrs">~8h</span>
+        <span class="phase-d">Sprites for marks and loot, a Canvas for the job list and coat, and raycast-based tap handling. Placeholder shapes are fine here — do not wait for art to make it playable.</span>
+      </li>
+      <li>
+        <span class="num">04</span><span class="phase-t">Buy the art</span><span class="hrs">~4h</span>
+        <span class="phase-d">A character pack for the crowd, a UI kit for panels and buttons, and item icons. Sources and licences are in the table below. Pick one kit and stay inside it — mixing three art styles is the fastest way to look amateur.</span>
+      </li>
+      <li>
+        <span class="num">05</span><span class="phase-t">Animate the crowd</span><span class="hrs">~6h</span>
+        <span class="phase-d">A walk cycle, an idle, and a head-turn for the alert state. Sprite sheets are simplest; <span class="tool-name">Spine</span> or <span class="tool-name">DragonBones</span> give smoother skeletal animation and are what most polished 2D mobile games use.</span>
+      </li>
+      <li>
+        <span class="num">06</span><span class="phase-t">Sound design</span><span class="hrs">~3h</span>
+        <span class="phase-d">A lift, a stash, a spotted sting, a fail, a stage-clear fanfare, and one loop of street ambience. Sound is the cheapest perceived-quality upgrade there is — a silent game feels broken.</span>
+      </li>
+      <li>
+        <span class="num">07</span><span class="phase-t">The juice pass</span><span class="hrs">~8h</span>
+        <span class="phase-d"><span class="tool-name">DOTween</span> on every movement, particles on stash and fail, <span class="tool-name">TextMeshPro</span> for type, screen shake, and haptics. This single phase is the difference between "student project" and "shippable".</span>
+      </li>
+      <li>
+        <span class="num">08</span><span class="phase-t">Menus and flow</span><span class="hrs">~5h</span>
+        <span class="phase-d">Title screen, stage map, the clear and caught screens, settings, and save data. Unglamorous and always underestimated.</span>
+      </li>
+      <li>
+        <span class="num">09</span><span class="phase-t">Monetization</span><span class="hrs">~4h</span>
+        <span class="phase-d">Ad mediation through <span class="tool-name">AppLovin MAX</span> or <span class="tool-name">Unity LevelPlay</span>, plus the bribe-the-guard offer as an IAP or rewarded video. <b>Skip this entirely if you are pitching publishers</b> — they rip it out and install their own.</span>
+      </li>
+      <li>
+        <span class="num">10</span><span class="phase-t">Test on real devices</span><span class="hrs">~5h</span>
+        <span class="phase-d">An old cheap Android and any iPhone. Watch frame rate, build size, battery, and safe areas around the notch. The editor lies about all four.</span>
+      </li>
+      <li>
+        <span class="num">11</span><span class="phase-t">Store submission</span><span class="hrs">~6h + waiting</span>
+        <span class="phase-d">Developer accounts, icons, screenshots, descriptions, privacy declarations, age rating, then review. Budget days, not hours, for the first submission on each store.</span>
+      </li>
+    </ol>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <span class="eyebrow">Assets</span>
+      <h2>Where the characters and sound come from</h2>
+    </div>
+    <p>Yes — almost nobody draws their own. Buying a coherent pack is normal practice and usually better than commissioning piecemeal.</p>
+    <div class="tbl">
+      <table>
+        <thead>
+          <tr><th>Source</th><th>What it has</th><th>Licence</th><th>Cost</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><b>Kenney.nl</b></td><td>2D sprites, UI kits, sound effects</td><td><span class="chip free">CC0 · no credit needed</span></td><td class="cost">Free</td></tr>
+          <tr><td><b>Unity Asset Store</b></td><td>UI kits, characters, SFX, tools</td><td><span class="chip paid">Store EULA · commercial OK</span></td><td class="cost">$0–80</td></tr>
+          <tr><td><b>itch.io</b></td><td>2D art and audio packs</td><td><span class="chip care">Varies per pack</span></td><td class="cost">$0–30</td></tr>
+          <tr><td><b>Freesound</b></td><td>Individual sound effects</td><td><span class="chip care">Per file · check each</span></td><td class="cost">Free</td></tr>
+          <tr><td><b>Craftpix / GameDev Market</b></td><td>2D game art, tilesets, characters</td><td><span class="chip paid">Commercial licence</span></td><td class="cost">$5–40</td></tr>
+          <tr><td><b>Spine</b></td><td>2D skeletal animation tool</td><td><span class="chip paid">Per-seat licence</span></td><td class="cost">$69–349</td></tr>
+          <tr><td><b>Fiverr / Upwork</b></td><td>A character artist, made to brief</td><td><span class="chip care">Get work-for-hire in writing</span></td><td class="cost">$50–500</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <span class="eyebrow">Licensing</span>
+      <h2>The part that gets games pulled</h2>
+    </div>
+    <div class="tbl">
+      <table>
+        <thead><tr><th>Licence</th><th>What you may do</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">CC0</td><td>Anything, including selling. No credit required. The safest thing to build on.</td></tr>
+          <tr><td class="mono">CC-BY</td><td>Commercial use is fine, but you must credit the author somewhere in the app.</td></tr>
+          <tr><td class="mono">CC-BY-NC</td><td><b>Not usable.</b> The NC means non-commercial — a game with ads or IAP is commercial.</td></tr>
+          <tr><td class="mono">Asset Store EULA</td><td>Use in your games freely. You may not resell or redistribute the asset itself.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="callout" style="margin-top:1.4rem">
+      <span class="eyebrow">Two rules that will save you</span>
+      <p>Never pull art or audio from an image search, another game, or a video — that is how apps get removed from stores and how small studios get legal letters. And keep a <code>licences.txt</code> in the project listing every asset, where it came from, and under what terms. You will not remember in six months, and a publisher will ask.</p>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <span class="eyebrow">Tooling</span>
+      <h2>What to install beyond Unity itself</h2>
+    </div>
+    <div class="tbl">
+      <table>
+        <thead><tr><th>Tool</th><th>Why it matters</th><th>Cost</th></tr></thead>
+        <tbody>
+          <tr><td><b>DOTween</b></td><td>Animates any value along a curve in one line. The single biggest jump in perceived quality you can make.</td><td class="cost">Free</td></tr>
+          <tr><td><b>TextMeshPro</b></td><td>Real typography instead of blurry default text. Ships with Unity.</td><td class="cost">Built in</td></tr>
+          <tr><td><b>Particle System</b></td><td>Stash bursts, confetti on stage clear, dust under footsteps.</td><td class="cost">Built in</td></tr>
+          <tr><td><b>Sprite Atlas</b></td><td>Packs sprites into one texture so the phone draws them in a single batch.</td><td class="cost">Built in</td></tr>
+          <tr><td><b>Spine / DragonBones</b></td><td>Skeletal 2D animation — how polished mobile characters actually move.</td><td class="cost">$69+ / Free</td></tr>
+          <tr><td><b>Nice Vibrations</b></td><td>Cross-platform haptics that feel the same on iOS and Android.</td><td class="cost">Free</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <span class="eyebrow">Reality check</span>
+      <h2>What the whole thing costs</h2>
+    </div>
+    <div class="totals">
+      <div class="tot"><span class="stat-k">~57h</span><span class="stat-l">Build time, excluding learning Unity</span></div>
+      <div class="tot"><span class="stat-k">20–40h</span><span class="stat-l">Learning C# and the editor first</span></div>
+      <div class="tot"><span class="stat-k">6–11wk</span><span class="stat-l">At 5–10 hours a week</span></div>
+      <div class="tot"><span class="stat-k">$99/yr</span><span class="stat-l">Apple Developer Program</span></div>
+      <div class="tot"><span class="stat-k">$25</span><span class="stat-l">Google Play, one time</span></div>
+      <div class="tot"><span class="stat-k">$0–150</span><span class="stat-l">Art, sound and tools</span></div>
+    </div>
+    <p style="margin-top:1.5rem">Unity itself is free until you pass $200k in revenue, so the engine is not the cost — your hours are. And one requirement catches everyone out: <b>a new Google Play personal account must run a closed test with 12 testers for 14 straight days</b> before it can publish to production. Start recruiting those twelve people long before the build is ready.</p>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <span class="eyebrow">Sequencing</span>
+      <h2>Do not start this yet</h2>
+    </div>
+    <p>Every hour spent porting is an hour not spent finding out whether the game is fun. The TypeScript prototype is the design document, and it is cheaper to change there than in C#.</p>
+    <p>Port when two things are true: the stage curve feels right when <em>you</em> play it, and you want to keep playing past stage five without being the person who built it. Until then, the honest answer to "should I open Unity" is no.</p>
+  </section>
+
+</div>
