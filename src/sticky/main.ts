@@ -1,5 +1,5 @@
-import { StickyGame } from './game'
-import type { Mark, LiftResult, ExpiredOrder, FilledOrder } from './game'
+import { StickyGame, stagePlan } from './game'
+import type { Mark, LiftResult, Stashed, Phase } from './game'
 import { POCKETS } from './game'
 import { Renderer } from './render'
 import { ITEM_KINDS } from './items'
@@ -13,10 +13,29 @@ if (!canvas) throw new Error('#game canvas missing')
 const game = new StickyGame()
 const renderer = new Renderer(canvas)
 
-function bust(): void {
+function caught(): void {
   playGameOver()
   vibrate([0, 70, 90, 70])
   renderer.shake(16)
+}
+
+function cleared(): void {
+  playClear(4, 3)
+  vibrate([0, 24, 40, 24, 40, 40])
+}
+
+function reportStash(stashed: Stashed): void {
+  const L = renderer.layout
+  const kind = ITEM_KINDS[stashed.kind]
+  renderer.flash(stashed.slots)
+  renderer.shake(stashed.goalComplete ? 9 : 5)
+  playClear(stashed.goalComplete ? 3 : 2, 0)
+  vibrate([0, 16, 36, 20])
+  renderer.popup(
+    stashed.goalComplete ? `${kind.glyph} DONE` : `${kind.glyph} STASHED`,
+    L.w / 2, L.pocketY - L.pad * 2,
+    stashed.goalComplete ? '#4ade80' : '#ffd93d',
+  )
 }
 
 function reportLift(result: LiftResult, at: { x: number; y: number }): void {
@@ -32,35 +51,15 @@ function reportLift(result: LiftResult, at: { x: number; y: number }): void {
   }
 
   if (result.junk) renderer.popup('JUNK', at.x, at.y + 26, '#8a93ad')
-
-  if (result.filled) reportFill(result.filled)
+  if (result.stashed) reportStash(result.stashed)
 }
 
-function reportFill(filled: FilledOrder): void {
-  renderer.flash(filled.slots)
-  renderer.shake(filled.hotCount ? 9 : 5)
-  playClear(filled.hotCount ? 3 : 2, 0)
-  vibrate([0, 16, 36, 20])
-  const L = renderer.layout
-  renderer.popup(
-    `+${filled.points}`,
-    L.w / 2, L.pocketY - L.pad * 2,
-    filled.hotCount ? '#ff5c7a' : '#ffd93d',
-  )
-}
-
-function reportExpiry(e: ExpiredOrder): void {
-  const L = renderer.layout
-  const kind = ITEM_KINDS[e.kind]
-  renderer.shake(e.stranded > 0 ? 10 : 4)
-  playInvalid()
-  vibrate(e.stranded > 0 ? [0, 45, 40, 45] : 22)
-  renderer.popup(
-    e.stranded > 0 ? `${kind.glyph} GONE — ${e.stranded} WASTED` : `${kind.glyph} GONE`,
-    L.w / 2,
-    L.ordersY + L.orderH * 1.9,
-    '#ff5c7a',
-  )
+/**
+ * Reads the phase without the narrowing the pointer handler's early-return
+ * guard applies — lift() and ditch() can end the run underneath us.
+ */
+function phaseOf(g: StickyGame): Phase {
+  return g.phase
 }
 
 /** Front-row marks win ties, since they are the ones under the finger. */
@@ -97,15 +96,17 @@ canvas.addEventListener('pointerdown', (e) => {
   e.preventDefault()
   unlockAudio()
 
-  if (game.over) {
+  if (game.phase !== 'playing') {
     const hit = renderer.buttons.find(
       (b) => e.clientX > b.x && e.clientX < b.x + b.w && e.clientY > b.y && e.clientY < b.y + b.h,
     )
     if (hit?.id === 'bribe') {
       game.bribe()
       playPickUp()
-    } else if (hit?.id === 'again') {
-      game.reset()
+    } else if (hit?.id === 'retry') {
+      game.retryStage()
+    } else if (hit?.id === 'next') {
+      game.nextStage()
     }
     return
   }
@@ -118,7 +119,7 @@ canvas.addEventListener('pointerdown', (e) => {
       renderer.popup('DITCHED', r.x + r.w / 2, r.y - r.h * 0.4, '#8a93ad')
       playInvalid()
       vibrate(18)
-      if (game.over) bust()
+      if (phaseOf(game) === 'caught') caught()
     }
     return
   }
@@ -138,7 +139,9 @@ canvas.addEventListener('pointerdown', (e) => {
   }
 
   reportLift(result, b)
-  if (game.over) bust()
+  const phase = phaseOf(game)
+  if (phase === 'caught') caught()
+  else if (phase === 'cleared') cleared()
 })
 
 const onResize = (): void => renderer.resize()
@@ -152,9 +155,7 @@ function frame(now: number): void {
   last = now
 
   const events = game.step(dt, renderer.layout.w)
-  for (const e of events.expired) reportExpiry(e)
-  for (const f of events.filled) reportFill(f)
-  if (events.busted) bust()
+  if (events.caught) caught()
 
   renderer.draw(game, dt)
   requestAnimationFrame(frame)
@@ -166,8 +167,10 @@ declare global {
     __sticky?: StickyGame
     __stickyRenderer?: Renderer
     __itemKinds?: typeof ITEM_KINDS
+    __stagePlan?: typeof stagePlan
   }
 }
 window.__sticky = game
 window.__stickyRenderer = renderer
 window.__itemKinds = ITEM_KINDS
+window.__stagePlan = stagePlan

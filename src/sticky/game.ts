@@ -6,9 +6,10 @@ export const ROW_SCALE = [0.7, 0.85, 1]
 export const ROW_GROUND = [0.34, 0.62, 0.92]
 export const ROW_ALPHA = [0.55, 0.78, 1]
 
-export const ORDER_COUNT = 3
+/** Most a single stash can carry, which also caps how many pockets one kind can hog. */
+const STASH_SIZE = 3
+const BRIBE_SECONDS = 15
 
-/** How aware a mark is of their own pockets right now. */
 export type Awareness = 'distracted' | 'neutral' | 'alert'
 
 /**
@@ -19,11 +20,11 @@ export type Awareness = 'distracted' | 'neutral' | 'alert'
 const LIFT_COST: Record<Awareness, number> = {
   distracted: -0.015,
   neutral: 0.035,
-  alert: 0.26,
+  alert: 0.2,
 }
 
 const DITCH_COST = 0.07
-const ORDER_RELIEF = 0.22
+const STASH_RELIEF = 0.2
 
 export interface CarriedItem {
   kind: number
@@ -43,20 +44,11 @@ export interface Mark {
   awarenessTimer: number
 }
 
-export interface Order {
-  id: number
+/** One line of the job: steal this many of this kind. */
+export interface Goal {
   kind: number
   need: number
-  /** Seconds left before the fence moves on. */
-  deadline: number
-  /** Starting deadline, kept so the bar has something to fill against. */
-  total: number
-}
-
-export interface ExpiredOrder {
-  kind: number
-  /** Items of this kind already in the coat, which just became junk. */
-  stranded: number
+  secured: number
 }
 
 export interface LiftFx {
@@ -66,147 +58,164 @@ export interface LiftFx {
   t: number
 }
 
-export type GameOverReason = 'suspicion' | null
-
-export interface FilledOrder {
+export interface Stashed {
   kind: number
-  need: number
-  points: number
-  hotCount: number
+  count: number
   slots: number[]
+  goalComplete: boolean
 }
 
-export interface StepEvents {
-  busted: GameOverReason
-  expired: ExpiredOrder[]
-  /** Lists a replacement order completed outright from goods already held. */
-  filled: FilledOrder[]
-}
+export type Phase = 'playing' | 'caught' | 'cleared'
+export type CaughtReason = 'time' | 'suspicion' | null
 
 export interface LiftResult {
-  filled: FilledOrder | null
-  cost: number
+  stashed: Stashed | null
   awareness: Awareness
   junk: boolean
 }
 
-const BEST_KEY = 'sticky-fingers.best'
+export interface StepEvents {
+  caught: CaughtReason
+  cleared: boolean
+}
+
+const BEST_KEY = 'sticky-fingers.stage'
+
+/**
+ * Stage 1 is a tutorial-shaped job. The list grows by roughly one piece a
+ * stage rather than by whole lines, so the jump from one job to the next is
+ * never a doubling, and the time allowance per piece tightens steadily.
+ */
+export function stagePlan(stage: number): { counts: number[]; items: number; seconds: number } {
+  const kinds = Math.min(4, 2 + Math.floor((stage - 1) / 4))
+  const target = Math.min(4 * kinds, 4 + Math.floor((stage - 1) * 0.8))
+
+  const counts: number[] = []
+  for (let i = 0; i < kinds; i++) {
+    const left = target - counts.reduce((a, b) => a + b, 0)
+    counts.push(Math.max(2, Math.min(4, Math.round(left / (kinds - i)))))
+  }
+
+  const items = counts.reduce((a, b) => a + b, 0)
+  const secondsPerItem = Math.max(4.5, 9 - (stage - 1) * 0.25)
+  return { counts, items, seconds: Math.round(items * secondsPerItem) }
+}
 
 export class StickyGame {
+  stage = 1
+  bestStage = readBest()
+  goals: Goal[] = []
   marks: Mark[] = []
   pockets: (CarriedItem | null)[] = new Array(POCKETS).fill(null)
-  orders: Order[] = []
-  suspicion = 0
-  score = 0
-  best = readBest()
-  elapsed = 0
-  over: GameOverReason = null
-  bribeUsed = false
   lifts: LiftFx[] = []
+  suspicion = 0
+  timeLeft = 0
+  timeLimit = 0
+  phase: Phase = 'playing'
+  caughtReason: CaughtReason = null
+  bribeUsed = false
 
   private nextId = 1
-  private nextOrderId = 1
-  private spawnTimer = 0.5
+  private spawnTimer = 0.4
 
   constructor() {
-    this.rollOrders()
+    this.startStage(1)
   }
 
-  reset(): void {
+  startStage(stage: number): void {
+    this.stage = stage
+    const plan = stagePlan(stage)
+
+    // Pick the required kinds from the pool this stage draws on.
+    const pool: number[] = []
+    for (let k = 0; k < this.kindsInPlay; k++) pool.push(k)
+    for (let i = pool.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1))
+      ;[pool[i], pool[j]] = [pool[j], pool[i]]
+    }
+
+    this.goals = plan.counts.map((need, i) => ({ kind: pool[i % pool.length], need, secured: 0 }))
+    this.timeLimit = plan.seconds
+    this.timeLeft = plan.seconds
     this.marks = []
     this.pockets = new Array(POCKETS).fill(null)
-    this.suspicion = 0
-    this.score = 0
-    this.elapsed = 0
-    this.over = null
-    this.bribeUsed = false
     this.lifts = []
+    this.suspicion = 0
+    this.phase = 'playing'
+    this.caughtReason = null
+    this.bribeUsed = false
+    this.spawnTimer = 0.4
     this.nextId = 1
-    this.spawnTimer = 0.5
-    this.orders = []
-    this.rollOrders()
+
+    if (stage > this.bestStage) {
+      this.bestStage = stage
+      writeBest(stage)
+    }
   }
 
-  private get heat(): number {
-    return Math.min(1, this.elapsed / 90)
+  retryStage(): void {
+    this.startStage(this.stage)
+  }
+
+  nextStage(): void {
+    this.startStage(this.stage + 1)
+  }
+
+  /** 0..1 across the whole difficulty ramp, used to make the street meaner. */
+  private get pressure(): number {
+    return Math.min(1, (this.stage - 1) / 14)
   }
 
   private get kindsInPlay(): number {
-    return Math.min(ITEM_KINDS.length, 5 + Math.floor(this.heat * 2))
+    return Math.min(ITEM_KINDS.length, 4 + Math.floor(this.pressure * 3))
   }
 
   private get spawnInterval(): number {
-    return 0.8 - this.heat * 0.42
+    return 0.8 - this.pressure * 0.4
   }
 
   private get walkSpeed(): number {
-    return 58 + this.heat * 70
+    return 58 + this.pressure * 72
   }
 
-  private rollOrders(exclude: Set<number> = new Set()): void {
-    while (this.orders.length < ORDER_COUNT) this.orders.push(this.makeOrder(exclude))
-  }
-
-  private makeOrder(exclude: Set<number> = new Set()): Order {
-    const active = new Set(this.orders.map((o) => o.kind))
-    const all: number[] = []
-    for (let k = 0; k < this.kindsInPlay; k++) all.push(k)
-
-    // Avoid the kinds already listed, and any that just expired — re-listing a
-    // kind the player was mid-way through would undo the loss they just took.
-    let options = all.filter((k) => !active.has(k) && !exclude.has(k))
-    if (!options.length) options = all.filter((k) => !active.has(k))
-    if (!options.length) options = all
-
-    const kind = options[Math.floor(Math.random() * options.length)]
-
-    // Bigger orders arrive as the night heats up; they pay more but hog pockets.
-    const roll = Math.random() + this.heat * 0.35
-    const need = roll > 0.82 ? 4 : roll > 0.45 ? 3 : 2
-
-    // Longer lists get proportionally more time, and every list gets tighter
-    // as the night goes on.
-    const total = (8 + need * 6) * (1 - this.heat * 0.28)
-    return { id: this.nextOrderId++, kind, need, deadline: total, total }
-  }
-
-  /** 0..1 of the deadline still remaining, for the countdown bar. */
-  timeLeft(order: Order): number {
-    return Math.max(0, Math.min(1, order.deadline / order.total))
-  }
-
-  /** True when a kind is on the fence's list — anything else is dead weight. */
+  /** A kind still owed to the job. Everything else is dead weight. */
   isWanted(kind: number): boolean {
-    return this.orders.some((o) => o.kind === kind)
+    return this.goals.some((g) => g.kind === kind && g.secured < g.need)
   }
 
   countHeld(kind: number): number {
     return this.pockets.reduce((n, p) => n + (p?.kind === kind ? 1 : 0), 0)
   }
 
-  progress(order: Order): number {
-    return Math.min(order.need, this.countHeld(order.kind))
+  /** How many of this kind make up the next stash run. */
+  stashTarget(goal: Goal): number {
+    return Math.min(STASH_SIZE, goal.need - goal.secured)
   }
 
   get freePockets(): number {
     return this.pockets.filter((p) => p === null).length
   }
 
+  get itemsNeeded(): number {
+    return this.goals.reduce((n, g) => n + (g.need - g.secured), 0)
+  }
+
+  get itemsSecured(): number {
+    return this.goals.reduce((n, g) => n + g.secured, 0)
+  }
+
+  get itemsTotal(): number {
+    return this.goals.reduce((n, g) => n + g.need, 0)
+  }
+
+  get timeFraction(): number {
+    return this.timeLimit > 0 ? Math.max(0, Math.min(1, this.timeLeft / this.timeLimit)) : 0
+  }
+
   step(dt: number, viewWidth: number): StepEvents {
-    if (this.over) return { busted: null, expired: [], filled: [] }
+    if (this.phase !== 'playing') return { caught: null, cleared: false }
 
-    this.elapsed += dt
-    const expired = this.tickOrders(dt)
-
-    // A replacement list can land on goods already in the coat, so settle any
-    // order that is complete the moment the list changes rather than waiting
-    // for the next lift.
-    const filled: FilledOrder[] = []
-    if (expired.length) {
-      for (let done = this.resolveOrders(); done; done = this.resolveOrders()) {
-        filled.push(done)
-      }
-    }
+    this.timeLeft -= dt
 
     this.spawnTimer -= dt
     if (this.spawnTimer <= 0) {
@@ -227,46 +236,37 @@ export class StickyGame {
 
     let hot = 0
     for (const p of this.pockets) if (p?.hot) hot++
-    this.suspicion += hot * 0.042 * dt
+    this.suspicion += hot * 0.03 * dt
     this.suspicion -= 0.012 * dt
     this.suspicion = Math.max(0, this.suspicion)
 
     if (this.suspicion >= 1) {
       this.suspicion = 1
-      this.over = 'suspicion'
-      return { busted: 'suspicion', expired, filled }
+      return this.bustOut('suspicion')
     }
-    return { busted: null, expired, filled }
+    if (this.timeLeft <= 0) {
+      this.timeLeft = 0
+      return this.bustOut('time')
+    }
+    return { caught: null, cleared: false }
   }
 
-  /**
-   * Runs every order's clock down. An expired order strands whatever the
-   * player already collected for it — those items stay in the coat as junk,
-   * so letting a list lapse costs pockets, not just the payout.
-   */
-  private tickOrders(dt: number): ExpiredOrder[] {
-    const expired: ExpiredOrder[] = []
-    const lapsedKinds = new Set<number>()
-
-    for (let i = this.orders.length - 1; i >= 0; i--) {
-      const o = this.orders[i]
-      o.deadline -= dt
-      if (o.deadline > 0) continue
-      expired.push({ kind: o.kind, stranded: this.countHeld(o.kind) })
-      lapsedKinds.add(o.kind)
-      this.orders.splice(i, 1)
-    }
-
-    if (expired.length) this.rollOrders(lapsedKinds)
-    return expired
+  private bustOut(reason: CaughtReason): StepEvents {
+    this.phase = 'caught'
+    this.caughtReason = reason
+    return { caught: reason, cleared: false }
   }
 
   private rollAwareness(m: Mark): void {
+    // Crowds get warier stage by stage: fewer easy marks, more heads up. The
+    // ramp stays shallow so late stages are tight rather than unplayable.
+    const distracted = 0.3 - this.pressure * 0.1
+    const alert = 0.18 + this.pressure * 0.08
     const roll = Math.random()
-    if (roll < 0.26) {
+    if (roll < distracted) {
       m.awareness = 'distracted'
       m.awarenessTimer = 1.2 + Math.random()
-    } else if (roll < 0.78) {
+    } else if (roll < 1 - alert) {
       m.awareness = 'neutral'
       m.awarenessTimer = 1.5 + Math.random() * 1.5
     } else {
@@ -277,13 +277,13 @@ export class StickyGame {
 
   private spawn(viewWidth: number): void {
     const row = Math.floor(Math.random() * 3)
-    // Weighted so wanted goods appear often enough to chase, while enough junk
-    // walks past that grabbing on reflex is punished.
-    const wantedKinds = this.orders.map((o) => o.kind)
-    const kind = Math.random() < 0.55
-      ? wantedKinds[Math.floor(Math.random() * wantedKinds.length)]
+    const owed = this.goals.filter((g) => g.secured < g.need).map((g) => g.kind)
+    // Enough of what the job needs to be chaseable, enough junk that grabbing
+    // on reflex is punished.
+    const kind = owed.length && Math.random() < 0.55
+      ? owed[Math.floor(Math.random() * owed.length)]
       : Math.floor(Math.random() * this.kindsInPlay)
-    const hot = Math.random() < 0.1 + this.heat * 0.14
+    const hot = Math.random() < 0.08 + this.pressure * 0.1
 
     const m: Mark = {
       id: this.nextId++,
@@ -306,7 +306,7 @@ export class StickyGame {
    * a block, not a loss; the way out is to ditch something and eat the cost.
    */
   lift(mark: Mark, fromX: number, fromY: number): LiftResult | null {
-    if (this.over || !mark.item) return null
+    if (this.phase !== 'playing' || !mark.item) return null
     if (this.freePockets === 0) return null
 
     const item = mark.item
@@ -317,30 +317,30 @@ export class StickyGame {
     this.sortPockets()
     this.lifts.push({ from: { x: fromX, y: fromY }, toSlot: slot, item, t: 0 })
 
-    const cost = LIFT_COST[mark.awareness]
-    this.suspicion = Math.max(0, Math.min(1, this.suspicion + cost))
+    this.suspicion = Math.max(0, Math.min(1, this.suspicion + LIFT_COST[mark.awareness]))
 
     const result: LiftResult = {
-      filled: this.resolveOrders(),
-      cost,
+      stashed: this.resolveStash(),
       awareness: mark.awareness,
       junk: !this.isWanted(item.kind),
     }
 
-    if (this.suspicion >= 1) this.over = 'suspicion'
+    if (this.suspicion >= 1) this.bustOut('suspicion')
+    else if (this.itemsNeeded === 0) this.phase = 'cleared'
+
     return result
   }
 
   /** Dumping dead weight is the only way out of a jammed coat, and it costs. */
   ditch(slot: number): CarriedItem | null {
-    if (this.over) return null
+    if (this.phase !== 'playing') return null
     const item = this.pockets[slot]
     if (!item) return null
 
     this.pockets[slot] = null
     this.sortPockets()
     this.suspicion = Math.min(1, this.suspicion + DITCH_COST)
-    if (this.suspicion >= 1) this.over = 'suspicion'
+    if (this.suspicion >= 1) this.bustOut('suspicion')
     return item
   }
 
@@ -353,57 +353,53 @@ export class StickyGame {
     ] as (CarriedItem | null)[]
   }
 
-  private resolveOrders(): FilledOrder | null {
-    for (let i = 0; i < this.orders.length; i++) {
-      const order = this.orders[i]
-      if (this.countHeld(order.kind) < order.need) continue
+  /**
+   * Hands a full run of one kind off to the stash, freeing those pockets and
+   * crediting the job. Anything held beyond what the job still owes stays put
+   * and turns to junk once the line is done — over-collecting has a price.
+   */
+  private resolveStash(): Stashed | null {
+    for (const goal of this.goals) {
+      if (goal.secured >= goal.need) continue
+      const target = this.stashTarget(goal)
+      if (this.countHeld(goal.kind) < target) continue
 
       const slots: number[] = []
-      let hotCount = 0
-      for (let s = 0; s < POCKETS && slots.length < order.need; s++) {
-        const p = this.pockets[s]
-        if (p?.kind !== order.kind) continue
-        slots.push(s)
-        if (p.hot) hotCount++
+      for (let s = 0; s < POCKETS && slots.length < target; s++) {
+        if (this.pockets[s]?.kind === goal.kind) slots.push(s)
       }
       for (const s of slots) this.pockets[s] = null
       this.sortPockets()
 
-      // Finishing with time to spare pays a premium, so the clock is an
-      // opportunity to move fast rather than only a threat.
-      const speedBonus = 1 + 0.5 * this.timeLeft(order)
-      const points = Math.round(
-        order.need * (60 + this.heat * 80) * (1 + 0.5 * hotCount) * speedBonus,
-      )
-      this.score += points
-      if (this.score > this.best) {
-        this.best = this.score
-        writeBest(this.best)
+      goal.secured += target
+      this.suspicion = Math.max(0, this.suspicion - STASH_RELIEF)
+      return {
+        kind: goal.kind,
+        count: target,
+        slots,
+        goalComplete: goal.secured >= goal.need,
       }
-      this.suspicion = Math.max(0, this.suspicion - ORDER_RELIEF)
-
-      this.orders.splice(i, 1)
-      this.rollOrders()
-      return { kind: order.kind, need: order.need, points, hotCount, slots }
     }
     return null
   }
 
+  /** The fail offer, in fiction: buys back time and calms the street. */
   bribe(): boolean {
-    if (!this.over || this.bribeUsed) return false
+    if (this.phase !== 'caught' || this.bribeUsed) return false
     this.bribeUsed = true
-    this.pockets = new Array(POCKETS).fill(null)
-    this.suspicion = 0.35
-    this.over = null
+    this.timeLeft = BRIBE_SECONDS
+    this.suspicion = 0.3
+    this.phase = 'playing'
+    this.caughtReason = null
     return true
   }
 }
 
 function readBest(): number {
   try {
-    return Number(localStorage.getItem(BEST_KEY)) || 0
+    return Math.max(1, Number(localStorage.getItem(BEST_KEY)) || 1)
   } catch {
-    return 0
+    return 1
   }
 }
 
@@ -411,6 +407,6 @@ function writeBest(v: number): void {
   try {
     localStorage.setItem(BEST_KEY, String(v))
   } catch {
-    // Blocked storage just means the best score does not persist.
+    // Blocked storage just means progress does not persist.
   }
 }
