@@ -1,0 +1,16 @@
+{
+  "artboards": [
+    { "file": "Main.dc.html", "title": "A — Sunny Plaza", "x": 0, "y": 0, "w": 400, "h": 820 },
+    { "file": "BoldToon.dc.html", "title": "B — Bold Toon", "x": 460, "y": 0, "w": 400, "h": 820 },
+    { "file": "RivieraDeco.dc.html", "title": "C — Riviera Deco", "x": 920, "y": 0, "w": 400, "h": 820 },
+    { "file": "SoftDiorama.dc.html", "title": "D — Soft Diorama", "x": 1380, "y": 0, "w": 400, "h": 820 }
+  ],
+  "annotations": [
+    { "id": "brief", "x": 0, "y": -150, "w": 400, "text": "Same screen, four directions.\nAll daylight, all with real character archetypes — tourist, businessman, shopper.\nPick one and I'll build it into the game." },
+    { "id": "note-a", "x": 0, "y": 850, "w": 400, "text": "A — SUNNY PLAZA\nFlat vector, warm Mediterranean midday.\nSafest broad appeal, reads instantly at speed.\nTradeoff: pleasant but not memorable." },
+    { "id": "note-b", "x": 460, "y": 850, "w": 400, "text": "B — BOLD TOON\nThick outlines, saturated, big-headed cast.\nBest for ad creative and small screens; the look publishers greenlight most.\nTradeoff: crowded aesthetic, many games look like this." },
+    { "id": "note-c", "x": 920, "y": 850, "w": 400, "text": "C — RIVIERA DECO\nMid-century travel poster: limited palette, geometric cast, paper grain, long shadows.\nMost distinctive and most premium-feeling.\nTradeoff: narrower appeal, hardest to keep readable at speed." },
+    { "id": "note-d", "x": 1380, "y": 850, "w": 400, "text": "D — SOFT DIORAMA\nSoft-shaded clay toys, gentle daylight, tactile depth.\nHighest perceived production value.\nTradeoff: most expensive to build and to keep fast on older phones." }
+  ],
+  "launch": { "view": "canvas" }
+}
