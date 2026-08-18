@@ -1,6 +1,6 @@
 import { StickyGame, stagePlan } from './game'
 import type { Mark, LiftResult, Stashed, Phase } from './game'
-import { POCKETS } from './game'
+import { MAX_POCKETS } from './game'
 import { Renderer } from './render'
 import { ITEM_KINDS } from './items'
 import {
@@ -85,7 +85,9 @@ function pickMark(x: number, y: number): Mark | null {
 }
 
 function pickPocket(x: number, y: number): number | null {
-  for (let slot = 0; slot < POCKETS; slot++) {
+  // Sewn-shut slots are drawn but not tappable.
+  const usable = Math.min(MAX_POCKETS, game.pockets.length)
+  for (let slot = 0; slot < usable; slot++) {
     const r = renderer.pocketRect(slot)
     if (x > r.x && x < r.x + r.w && y > r.y - r.h * 0.25 && y < r.y + r.h) return slot
   }

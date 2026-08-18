@@ -34,12 +34,20 @@ npm run build:artifact:sticky  # single self-contained HTML file
 
 `stagePlan()` grows the list by roughly one piece per stage rather than by
 whole lines, so no stage doubles the one before it, while the seconds allowed
-per piece tighten from 9.0 down to a 4.5 floor. The crowd also gets warier —
-fewer distracted marks, more alert ones, more hot goods.
+per piece tighten from 9.0 downward. The crowd gets warier throughout — fewer
+distracted marks, more alert ones, more hot goods.
 
-Bot runs clear stages 1–7 every time (a deliberate free onboarding ramp),
-then settle into a 25–63% clear band from stage 11, with failures split
-between the clock and suspicion.
+The list saturates at sixteen pieces around stage 19. Past that the squeeze
+moves onto the coat: pockets are sewn shut, six down to five at stage 20 and
+four at stage 30. A stash run stays at three, so a smaller coat jams far more
+often on a spread of kinds that never completes a run — and paying a ditch to
+break out is what makes the late game bite. `lateHeat` also keeps thinning the
+useful goods on the street and raising the share of alert marks until stage 40.
+
+Bot clear rates: 100% through stage 19 (stages 1–7 are a deliberate free
+onboarding ramp), 80–90% across the five-pocket tier, 70% at stage 30, 40% at
+stage 40 and 10% at stage 50. The curve keeps descending rather than
+plateauing.
 
 ## Block Roguelite — parked
 

@@ -1,12 +1,19 @@
 import { ITEM_KINDS, BODY_COLORS } from './items'
 
-export const POCKETS = 6
+/** Coat slots drawn on screen. Late stages sew some of them shut. */
+export const MAX_POCKETS = 6
+const MIN_POCKETS = 4
 /** Three depth rows: back, middle, front. */
 export const ROW_SCALE = [0.7, 0.85, 1]
 export const ROW_GROUND = [0.34, 0.62, 0.92]
 export const ROW_ALPHA = [0.55, 0.78, 1]
 
-/** Most a single stash can carry, which also caps how many pockets one kind can hog. */
+/**
+ * Most a single stash can carry, which also caps how many pockets one kind can
+ * hog. Held at three even as the coat shrinks: a small coat jams often on a
+ * spread of kinds that never reaches a full run, and paying a ditch to break
+ * out of that is exactly what makes the late stages bite.
+ */
 const STASH_SIZE = 3
 const BRIBE_SECONDS = 15
 
@@ -85,8 +92,17 @@ const BEST_KEY = 'sticky-fingers.stage'
  * Stage 1 is a tutorial-shaped job. The list grows by roughly one piece a
  * stage rather than by whole lines, so the jump from one job to the next is
  * never a doubling, and the time allowance per piece tightens steadily.
+ *
+ * The list saturates at sixteen pieces around stage 19. Past that the job
+ * stops growing and the squeeze moves onto the coat instead: pockets get sewn
+ * shut, which tightens the one constraint the whole design turns on.
  */
-export function stagePlan(stage: number): { counts: number[]; items: number; seconds: number } {
+export function stagePlan(stage: number): {
+  counts: number[]
+  items: number
+  seconds: number
+  pockets: number
+} {
   const kinds = Math.min(4, 2 + Math.floor((stage - 1) / 4))
   const target = Math.min(4 * kinds, 4 + Math.floor((stage - 1) * 0.8))
 
@@ -97,8 +113,13 @@ export function stagePlan(stage: number): { counts: number[]; items: number; sec
   }
 
   const items = counts.reduce((a, b) => a + b, 0)
-  const secondsPerItem = Math.max(4.5, 9 - (stage - 1) * 0.25)
-  return { counts, items, seconds: Math.round(items * secondsPerItem) }
+  const secondsPerItem = stage <= 19
+    ? 9 - (stage - 1) * 0.25
+    : Math.max(3.2, 4.5 - (stage - 19) * 0.04)
+
+  const pockets = stage >= 30 ? MIN_POCKETS : stage >= 20 ? 5 : MAX_POCKETS
+
+  return { counts, items, seconds: Math.round(items * secondsPerItem), pockets }
 }
 
 export class StickyGame {
@@ -106,7 +127,7 @@ export class StickyGame {
   bestStage = readBest()
   goals: Goal[] = []
   marks: Mark[] = []
-  pockets: (CarriedItem | null)[] = new Array(POCKETS).fill(null)
+  pockets: (CarriedItem | null)[] = new Array(MAX_POCKETS).fill(null)
   lifts: LiftFx[] = []
   suspicion = 0
   timeLeft = 0
@@ -138,7 +159,7 @@ export class StickyGame {
     this.timeLimit = plan.seconds
     this.timeLeft = plan.seconds
     this.marks = []
-    this.pockets = new Array(POCKETS).fill(null)
+    this.pockets = new Array(plan.pockets).fill(null)
     this.lifts = []
     this.suspicion = 0
     this.phase = 'playing'
@@ -161,9 +182,18 @@ export class StickyGame {
     this.startStage(this.stage + 1)
   }
 
-  /** 0..1 across the whole difficulty ramp, used to make the street meaner. */
+  /** 0..1 across the early ramp, used to make the street meaner. */
   private get pressure(): number {
     return Math.min(1, (this.stage - 1) / 14)
+  }
+
+  /**
+   * Takes over once `pressure` saturates, so the street keeps getting harder
+   * after the job list stops growing. Saturates itself at stage 40, past which
+   * only the clock keeps tightening.
+   */
+  private get lateHeat(): number {
+    return Math.min(1, Math.max(0, (this.stage - 19) / 21))
   }
 
   private get kindsInPlay(): number {
@@ -175,7 +205,7 @@ export class StickyGame {
   }
 
   private get walkSpeed(): number {
-    return 58 + this.pressure * 72
+    return 58 + this.pressure * 72 + this.lateHeat * 42
   }
 
   /** A kind still owed to the job. Everything else is dead weight. */
@@ -260,8 +290,8 @@ export class StickyGame {
   private rollAwareness(m: Mark): void {
     // Crowds get warier stage by stage: fewer easy marks, more heads up. The
     // ramp stays shallow so late stages are tight rather than unplayable.
-    const distracted = 0.3 - this.pressure * 0.1
-    const alert = 0.18 + this.pressure * 0.08
+    const distracted = 0.3 - this.pressure * 0.1 - this.lateHeat * 0.1
+    const alert = 0.18 + this.pressure * 0.08 + this.lateHeat * 0.14
     const roll = Math.random()
     if (roll < distracted) {
       m.awareness = 'distracted'
@@ -280,10 +310,12 @@ export class StickyGame {
     const owed = this.goals.filter((g) => g.secured < g.need).map((g) => g.kind)
     // Enough of what the job needs to be chaseable, enough junk that grabbing
     // on reflex is punished.
-    const kind = owed.length && Math.random() < 0.55
+    // Late stages thin out the useful goods, so more of the crowd is a decoy.
+    const wantedBias = 0.55 - this.lateHeat * 0.2
+    const kind = owed.length && Math.random() < wantedBias
       ? owed[Math.floor(Math.random() * owed.length)]
       : Math.floor(Math.random() * this.kindsInPlay)
-    const hot = Math.random() < 0.08 + this.pressure * 0.1
+    const hot = Math.random() < 0.08 + this.pressure * 0.1 + this.lateHeat * 0.1
 
     const m: Mark = {
       id: this.nextId++,
@@ -349,7 +381,7 @@ export class StickyGame {
     items.sort((a, b) => a.kind - b.kind || Number(b.hot) - Number(a.hot))
     this.pockets = [
       ...items,
-      ...new Array(POCKETS - items.length).fill(null),
+      ...new Array(this.pockets.length - items.length).fill(null),
     ] as (CarriedItem | null)[]
   }
 
@@ -365,7 +397,7 @@ export class StickyGame {
       if (this.countHeld(goal.kind) < target) continue
 
       const slots: number[] = []
-      for (let s = 0; s < POCKETS && slots.length < target; s++) {
+      for (let s = 0; s < this.pockets.length && slots.length < target; s++) {
         if (this.pockets[s]?.kind === goal.kind) slots.push(s)
       }
       for (const s of slots) this.pockets[s] = null

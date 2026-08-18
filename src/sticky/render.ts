@@ -1,5 +1,5 @@
 import type { StickyGame, Mark, CarriedItem, Awareness, Goal } from './game'
-import { POCKETS, ROW_GROUND, ROW_ALPHA } from './game'
+import { MAX_POCKETS, ROW_GROUND, ROW_ALPHA } from './game'
 import { ITEM_KINDS } from './items'
 
 export interface Layout {
@@ -59,7 +59,7 @@ export function computeLayout(w: number, h: number): Layout {
   const laneY = headerH
   const laneH = Math.max(120, pocketY - laneY - pad * 1.2)
   const pocketGap = pad * 0.45
-  const pocketW = (w - pad * 2 - pocketGap * (POCKETS - 1)) / POCKETS
+  const pocketW = (w - pad * 2 - pocketGap * (MAX_POCKETS - 1)) / MAX_POCKETS
 
   return { w, h, pad, headerH, goalsY, goalH, laneY, laneH, pocketY, pocketH,
            pocketW, pocketGap, bubbleR: Math.min(laneH * 0.062, w * 0.078) }
@@ -269,7 +269,8 @@ export class Renderer {
 
     ctx.textAlign = 'right'
     ctx.fillStyle = game.freePockets === 0 ? C.hot : C.dim
-    ctx.fillText(`${game.freePockets} POCKETS FREE`, L.w - L.pad, susY + susH + L.headerH * 0.06)
+    const free = game.freePockets
+    ctx.fillText(`${free} POCKET${free === 1 ? '' : 'S'} FREE`, L.w - L.pad, susY + susH + L.headerH * 0.06)
   }
 
   /** The job list: what this stage owes, and what is riding in the coat. */
@@ -439,8 +440,32 @@ export class Renderer {
     ctx.font = `600 ${Math.round(L.pocketH * 0.17)}px system-ui, sans-serif`
     ctx.fillText('COAT — TAP TO DITCH', L.pad, L.pocketY - L.pad * 0.62)
 
-    for (let slot = 0; slot < POCKETS; slot++) {
+    for (let slot = 0; slot < MAX_POCKETS; slot++) {
       const r = this.pocketRect(slot)
+
+      // Late stages sew pockets shut; they stay on screen so the loss reads.
+      if (slot >= game.pockets.length) {
+        ctx.fillStyle = 'rgba(10,13,20,0.75)'
+        roundRect(ctx, r.x, r.y, r.w, r.h, r.w * 0.24)
+        ctx.fill()
+        ctx.save()
+        ctx.strokeStyle = 'rgba(138,147,173,0.35)'
+        ctx.lineWidth = Math.max(1.5, r.w * 0.035)
+        ctx.setLineDash([r.w * 0.14, r.w * 0.1])
+        roundRect(ctx, r.x, r.y, r.w, r.h, r.w * 0.24)
+        ctx.stroke()
+        ctx.setLineDash([])
+        const inset = r.w * 0.3
+        ctx.beginPath()
+        ctx.moveTo(r.x + inset, r.y + r.h / 2 - r.w * 0.2)
+        ctx.lineTo(r.x + r.w - inset, r.y + r.h / 2 + r.w * 0.2)
+        ctx.moveTo(r.x + r.w - inset, r.y + r.h / 2 - r.w * 0.2)
+        ctx.lineTo(r.x + inset, r.y + r.h / 2 + r.w * 0.2)
+        ctx.stroke()
+        ctx.restore()
+        continue
+      }
+
       const item = game.pockets[slot]
 
       ctx.fillStyle = C.slot
