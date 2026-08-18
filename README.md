@@ -44,10 +44,15 @@ often on a spread of kinds that never completes a run — and paying a ditch to
 break out is what makes the late game bite. `lateHeat` also keeps thinning the
 useful goods on the street and raising the share of alert marks until stage 40.
 
-Bot clear rates: 100% through stage 19 (stages 1–7 are a deliberate free
-onboarding ramp), 80–90% across the five-pocket tier, 70% at stage 30, 40% at
-stage 40 and 10% at stage 50. The curve keeps descending rather than
-plateauing.
+Past stage 19 the time allowance also drops away sharply, settling toward 1.7
+seconds a piece (about 27s for a full list) instead of the old 4.5s floor.
+Late-stage suspicion drains faster to match, so heat no longer ends every deep
+run before the clock gets a chance to.
+
+Bot clear rates run roughly 96–100% through stage 25, then 50–83% from stage
+30 on, descending rather than plateauing. Note that a bot taking one action
+per second is faster and more accurate than any person, so it is a lower bound
+on time pressure — it only starts dying to the clock at stage 50.
 
 ## Block Roguelite — parked
 

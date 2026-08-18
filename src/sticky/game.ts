@@ -113,9 +113,15 @@ export function stagePlan(stage: number): {
   }
 
   const items = counts.reduce((a, b) => a + b, 0)
+  // Past stage 19 the allowance falls away fast and settles toward 1.7 seconds
+  // a piece — about 27s for a full list. A limit sweep against a bot capped at
+  // one action a second put the point where the clock starts killing at ~30s
+  // and where it dominates at ~23s, so the deep stages sit just inside that
+  // band. A person is slower than the bot, so the clock bites sooner for them.
+  // Continuous at 19, where both branches give 4.5.
   const secondsPerItem = stage <= 19
     ? 9 - (stage - 1) * 0.25
-    : Math.max(3.2, 4.5 - (stage - 19) * 0.04)
+    : 1.7 + 2.8 * Math.exp(-(stage - 19) / 10)
 
   const pockets = stage >= 30 ? MIN_POCKETS : stage >= 20 ? 5 : MAX_POCKETS
 
@@ -267,7 +273,7 @@ export class StickyGame {
     let hot = 0
     for (const p of this.pockets) if (p?.hot) hot++
     this.suspicion += hot * 0.03 * dt
-    this.suspicion -= 0.012 * dt
+    this.suspicion -= (0.012 + this.lateHeat * 0.014) * dt
     this.suspicion = Math.max(0, this.suspicion)
 
     if (this.suspicion >= 1) {
