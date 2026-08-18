@@ -255,23 +255,43 @@ export class Renderer {
       const have = game.progress(o)
       const done = have >= o.need
 
-      ctx.fillStyle = C.slot
+      const left = game.timeLeft(o)
+      const urgent = left < 0.28
+      const pulse = 0.5 + 0.5 * Math.sin(performance.now() / 95)
+
+      ctx.fillStyle = urgent ? `rgba(60,24,32,${0.5 + pulse * 0.35})` : C.slot
       roundRect(ctx, r.x, r.y, r.w, r.h, r.h * 0.24)
       ctx.fill()
-      ctx.strokeStyle = done ? C.safe : kind.color
-      ctx.lineWidth = done ? 3 : 1.5
+      ctx.strokeStyle = done ? C.safe : urgent ? C.hot : kind.color
+      ctx.lineWidth = done || urgent ? 3 : 1.5
       roundRect(ctx, r.x, r.y, r.w, r.h, r.h * 0.24)
       ctx.stroke()
 
       ctx.textAlign = 'left'
       ctx.textBaseline = 'middle'
-      ctx.font = `${Math.round(r.h * 0.52)}px system-ui, "Apple Color Emoji", "Noto Color Emoji", sans-serif`
-      ctx.fillText(kind.glyph, r.x + r.w * 0.12, r.y + r.h * 0.52)
+      ctx.font = `${Math.round(r.h * 0.46)}px system-ui, "Apple Color Emoji", "Noto Color Emoji", sans-serif`
+      ctx.fillText(kind.glyph, r.x + r.w * 0.11, r.y + r.h * 0.44)
 
       ctx.fillStyle = have > 0 ? C.text : C.dim
-      ctx.font = `800 ${Math.round(r.h * 0.38)}px system-ui, sans-serif`
+      ctx.font = `800 ${Math.round(r.h * 0.34)}px system-ui, sans-serif`
       ctx.textAlign = 'right'
-      ctx.fillText(`${have}/${o.need}`, r.x + r.w * 0.88, r.y + r.h * 0.52)
+      ctx.fillText(`${have}/${o.need}`, r.x + r.w * 0.89, r.y + r.h * 0.44)
+
+      // Countdown along the bottom of the chip.
+      const barH = Math.max(4, r.h * 0.1)
+      const barY = r.y + r.h - barH - r.h * 0.12
+      const barX = r.x + r.w * 0.1
+      const barW = r.w * 0.8
+      ctx.fillStyle = 'rgba(255,255,255,0.09)'
+      roundRect(ctx, barX, barY, barW, barH, barH / 2)
+      ctx.fill()
+      if (left > 0) {
+        ctx.fillStyle = urgent
+          ? `rgba(255,92,122,${0.65 + pulse * 0.35})`
+          : left < 0.5 ? C.gold : C.safe
+        roundRect(ctx, barX, barY, Math.max(barH, barW * left), barH, barH / 2)
+        ctx.fill()
+      }
     }
   }
 

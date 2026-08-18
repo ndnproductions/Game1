@@ -47,6 +47,16 @@ export interface Order {
   id: number
   kind: number
   need: number
+  /** Seconds left before the fence moves on. */
+  deadline: number
+  /** Starting deadline, kept so the bar has something to fill against. */
+  total: number
+}
+
+export interface ExpiredOrder {
+  kind: number
+  /** Items of this kind already in the coat, which just became junk. */
+  stranded: number
 }
 
 export interface LiftFx {
@@ -64,6 +74,13 @@ export interface FilledOrder {
   points: number
   hotCount: number
   slots: number[]
+}
+
+export interface StepEvents {
+  busted: GameOverReason
+  expired: ExpiredOrder[]
+  /** Lists a replacement order completed outright from goods already held. */
+  filled: FilledOrder[]
 }
 
 export interface LiftResult {
@@ -126,22 +143,36 @@ export class StickyGame {
     return 58 + this.heat * 70
   }
 
-  private rollOrders(): void {
-    while (this.orders.length < ORDER_COUNT) this.orders.push(this.makeOrder())
+  private rollOrders(exclude: Set<number> = new Set()): void {
+    while (this.orders.length < ORDER_COUNT) this.orders.push(this.makeOrder(exclude))
   }
 
-  private makeOrder(): Order {
-    const taken = new Set(this.orders.map((o) => o.kind))
-    const options: number[] = []
-    for (let k = 0; k < this.kindsInPlay; k++) if (!taken.has(k)) options.push(k)
-    const kind = options.length
-      ? options[Math.floor(Math.random() * options.length)]
-      : Math.floor(Math.random() * this.kindsInPlay)
+  private makeOrder(exclude: Set<number> = new Set()): Order {
+    const active = new Set(this.orders.map((o) => o.kind))
+    const all: number[] = []
+    for (let k = 0; k < this.kindsInPlay; k++) all.push(k)
+
+    // Avoid the kinds already listed, and any that just expired — re-listing a
+    // kind the player was mid-way through would undo the loss they just took.
+    let options = all.filter((k) => !active.has(k) && !exclude.has(k))
+    if (!options.length) options = all.filter((k) => !active.has(k))
+    if (!options.length) options = all
+
+    const kind = options[Math.floor(Math.random() * options.length)]
 
     // Bigger orders arrive as the night heats up; they pay more but hog pockets.
     const roll = Math.random() + this.heat * 0.35
     const need = roll > 0.82 ? 4 : roll > 0.45 ? 3 : 2
-    return { id: this.nextOrderId++, kind, need }
+
+    // Longer lists get proportionally more time, and every list gets tighter
+    // as the night goes on.
+    const total = (8 + need * 6) * (1 - this.heat * 0.28)
+    return { id: this.nextOrderId++, kind, need, deadline: total, total }
+  }
+
+  /** 0..1 of the deadline still remaining, for the countdown bar. */
+  timeLeft(order: Order): number {
+    return Math.max(0, Math.min(1, order.deadline / order.total))
   }
 
   /** True when a kind is on the fence's list — anything else is dead weight. */
@@ -161,10 +192,21 @@ export class StickyGame {
     return this.pockets.filter((p) => p === null).length
   }
 
-  step(dt: number, viewWidth: number): { busted: GameOverReason } {
-    if (this.over) return { busted: null }
+  step(dt: number, viewWidth: number): StepEvents {
+    if (this.over) return { busted: null, expired: [], filled: [] }
 
     this.elapsed += dt
+    const expired = this.tickOrders(dt)
+
+    // A replacement list can land on goods already in the coat, so settle any
+    // order that is complete the moment the list changes rather than waiting
+    // for the next lift.
+    const filled: FilledOrder[] = []
+    if (expired.length) {
+      for (let done = this.resolveOrders(); done; done = this.resolveOrders()) {
+        filled.push(done)
+      }
+    }
 
     this.spawnTimer -= dt
     if (this.spawnTimer <= 0) {
@@ -192,9 +234,31 @@ export class StickyGame {
     if (this.suspicion >= 1) {
       this.suspicion = 1
       this.over = 'suspicion'
-      return { busted: 'suspicion' }
+      return { busted: 'suspicion', expired, filled }
     }
-    return { busted: null }
+    return { busted: null, expired, filled }
+  }
+
+  /**
+   * Runs every order's clock down. An expired order strands whatever the
+   * player already collected for it — those items stay in the coat as junk,
+   * so letting a list lapse costs pockets, not just the payout.
+   */
+  private tickOrders(dt: number): ExpiredOrder[] {
+    const expired: ExpiredOrder[] = []
+    const lapsedKinds = new Set<number>()
+
+    for (let i = this.orders.length - 1; i >= 0; i--) {
+      const o = this.orders[i]
+      o.deadline -= dt
+      if (o.deadline > 0) continue
+      expired.push({ kind: o.kind, stranded: this.countHeld(o.kind) })
+      lapsedKinds.add(o.kind)
+      this.orders.splice(i, 1)
+    }
+
+    if (expired.length) this.rollOrders(lapsedKinds)
+    return expired
   }
 
   private rollAwareness(m: Mark): void {
@@ -305,8 +369,11 @@ export class StickyGame {
       for (const s of slots) this.pockets[s] = null
       this.sortPockets()
 
+      // Finishing with time to spare pays a premium, so the clock is an
+      // opportunity to move fast rather than only a threat.
+      const speedBonus = 1 + 0.5 * this.timeLeft(order)
       const points = Math.round(
-        order.need * (60 + this.heat * 80) * (1 + 0.5 * hotCount),
+        order.need * (60 + this.heat * 80) * (1 + 0.5 * hotCount) * speedBonus,
       )
       this.score += points
       if (this.score > this.best) {

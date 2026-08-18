@@ -1,5 +1,5 @@
 import { StickyGame } from './game'
-import type { Mark, LiftResult } from './game'
+import type { Mark, LiftResult, ExpiredOrder, FilledOrder } from './game'
 import { POCKETS } from './game'
 import { Renderer } from './render'
 import { ITEM_KINDS } from './items'
@@ -33,19 +33,34 @@ function reportLift(result: LiftResult, at: { x: number; y: number }): void {
 
   if (result.junk) renderer.popup('JUNK', at.x, at.y + 26, '#8a93ad')
 
-  const filled = result.filled
-  if (filled) {
-    renderer.flash(filled.slots)
-    renderer.shake(filled.hotCount ? 9 : 5)
-    playClear(filled.hotCount ? 3 : 2, 0)
-    vibrate([0, 16, 36, 20])
-    const L = renderer.layout
-    renderer.popup(
-      `+${filled.points}`,
-      L.w / 2, L.pocketY - L.pad * 2,
-      filled.hotCount ? '#ff5c7a' : '#ffd93d',
-    )
-  }
+  if (result.filled) reportFill(result.filled)
+}
+
+function reportFill(filled: FilledOrder): void {
+  renderer.flash(filled.slots)
+  renderer.shake(filled.hotCount ? 9 : 5)
+  playClear(filled.hotCount ? 3 : 2, 0)
+  vibrate([0, 16, 36, 20])
+  const L = renderer.layout
+  renderer.popup(
+    `+${filled.points}`,
+    L.w / 2, L.pocketY - L.pad * 2,
+    filled.hotCount ? '#ff5c7a' : '#ffd93d',
+  )
+}
+
+function reportExpiry(e: ExpiredOrder): void {
+  const L = renderer.layout
+  const kind = ITEM_KINDS[e.kind]
+  renderer.shake(e.stranded > 0 ? 10 : 4)
+  playInvalid()
+  vibrate(e.stranded > 0 ? [0, 45, 40, 45] : 22)
+  renderer.popup(
+    e.stranded > 0 ? `${kind.glyph} GONE — ${e.stranded} WASTED` : `${kind.glyph} GONE`,
+    L.w / 2,
+    L.ordersY + L.orderH * 1.9,
+    '#ff5c7a',
+  )
 }
 
 /** Front-row marks win ties, since they are the ones under the finger. */
@@ -136,7 +151,10 @@ function frame(now: number): void {
   const dt = Math.min((now - last) / 1000, 0.05)
   last = now
 
-  if (game.step(dt, renderer.layout.w).busted) bust()
+  const events = game.step(dt, renderer.layout.w)
+  for (const e of events.expired) reportExpiry(e)
+  for (const f of events.filled) reportFill(f)
+  if (events.busted) bust()
 
   renderer.draw(game, dt)
   requestAnimationFrame(frame)
