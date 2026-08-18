@@ -1,0 +1,368 @@
+<title>The Rack Engine</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+
+<style>
+  :root {
+    --paper:      #F1F4F0;
+    --card:       #FBFCFA;
+    --ink:        #161A17;
+    --ink-soft:   #4A524C;
+    --ink-faint:  #798179;
+    --rule:       #D6DCD6;
+    --rule-soft:  #E6EBE5;
+    --go:         #0F6E5C;
+    --go-wash:    #DCEDE7;
+    --warn:       #A2601A;
+    --warn-wash:  #F5E6D2;
+    --stop:       #A33324;
+    --stop-wash:  #F5DED9;
+    --shadow:     0 1px 2px rgba(22,26,23,.05), 0 8px 24px -12px rgba(22,26,23,.18);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper:     #0E1211;
+      --card:      #161C1A;
+      --ink:       #E8EDE9;
+      --ink-soft:  #A3AEA6;
+      --ink-faint: #737F76;
+      --rule:      #29322E;
+      --rule-soft: #1E2523;
+      --go:        #4FD1B0;
+      --go-wash:   #10312A;
+      --warn:      #E0A45B;
+      --warn-wash: #33240F;
+      --stop:      #F08573;
+      --stop-wash: #331714;
+      --shadow:    0 1px 2px rgba(0,0,0,.4), 0 8px 24px -12px rgba(0,0,0,.7);
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper:     #0E1211;
+    --card:      #161C1A;
+    --ink:       #E8EDE9;
+    --ink-soft:  #A3AEA6;
+    --ink-faint: #737F76;
+    --rule:      #29322E;
+    --rule-soft: #1E2523;
+    --go:        #4FD1B0;
+    --go-wash:   #10312A;
+    --warn:      #E0A45B;
+    --warn-wash: #33240F;
+    --stop:      #F08573;
+    --stop-wash: #331714;
+    --shadow:    0 1px 2px rgba(0,0,0,.4), 0 8px 24px -12px rgba(0,0,0,.7);
+  }
+
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: Newsreader, Georgia, serif;
+    font-size: 18px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 60rem; margin: 0 auto; padding: 4rem 1.5rem 6rem; }
+  @media (max-width: 40rem) { .wrap { padding: 2.5rem 1.1rem 4rem; } }
+
+  h1, h2, h3, .mono, .eyebrow, th, .stat-num, .chip, .spec dt {
+    font-family: 'Bricolage Grotesque', 'Helvetica Neue', Arial, sans-serif;
+  }
+  .mono, .eyebrow, .stat-label, .chip, .src-list, .spec dt {
+    font-family: 'IBM Plex Mono', ui-monospace, Menlo, monospace;
+  }
+
+  .eyebrow {
+    font-size: .7rem; font-weight: 600; letter-spacing: .16em;
+    text-transform: uppercase; color: var(--go);
+  }
+  h1 {
+    font-size: clamp(2.6rem, 8vw, 4.6rem); font-weight: 800;
+    letter-spacing: -.03em; line-height: .95; text-wrap: balance;
+    margin: .6rem 0 0;
+  }
+  .thesis {
+    font-size: clamp(1.15rem, 2.6vw, 1.4rem); line-height: 1.45;
+    color: var(--ink-soft); max-width: 34ch; margin-top: 1.2rem;
+  }
+  .thesis strong { color: var(--ink); font-weight: 500; }
+
+  h2 {
+    font-size: clamp(1.5rem, 3.6vw, 2rem); font-weight: 800; letter-spacing: -.02em;
+    line-height: 1.1; margin: 0 0 .4rem; text-wrap: balance;
+  }
+  h3 { font-size: 1.15rem; font-weight: 600; letter-spacing: -.01em; margin: 0; }
+
+  section { margin-top: 4.5rem; }
+  .sec-head {
+    display: flex; flex-direction: column; gap: .1rem;
+    border-top: 2px solid var(--ink); padding-top: .9rem; margin-bottom: 1.8rem;
+  }
+  p { margin: 0 0 1.1rem; max-width: 66ch; }
+  p:last-child { margin-bottom: 0; }
+  strong { font-weight: 500; color: var(--ink); }
+  em { font-style: italic; }
+
+  /* Stat strip */
+  .stats {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
+    gap: 1px; background: var(--rule); border: 1px solid var(--rule);
+    border-radius: 10px; overflow: hidden; margin-top: 2.5rem;
+  }
+  .stat { background: var(--card); padding: 1.1rem 1rem 1.2rem; }
+  .stat-num {
+    font-size: 1.75rem; font-weight: 800; letter-spacing: -.03em;
+    font-variant-numeric: tabular-nums; line-height: 1; display: block;
+  }
+  .stat-label {
+    font-size: .66rem; letter-spacing: .06em; text-transform: uppercase;
+    color: var(--ink-faint); margin-top: .5rem; display: block; line-height: 1.4;
+  }
+
+  /* The rack list */
+  .rack-list { list-style: none; padding: 0; margin: 1.6rem 0 0; display: grid; gap: 1px;
+    background: var(--rule); border: 1px solid var(--rule); border-radius: 10px; overflow: hidden; }
+  .rack-list li {
+    background: var(--card); padding: .85rem 1.1rem; display: flex; flex-wrap: wrap;
+    align-items: baseline; gap: .3rem .9rem;
+  }
+  .rack-game { font-family: 'Bricolage Grotesque', sans-serif; font-weight: 600; font-size: 1rem; min-width: 9rem; }
+  .rack-what { color: var(--ink-soft); font-size: .95rem; }
+
+  /* Mechanism cards */
+  .mechs { display: grid; gap: 1.1rem; margin-top: 1.6rem;
+    grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); }
+  .mech {
+    background: var(--card); border: 1px solid var(--rule); border-radius: 10px;
+    padding: 1.2rem 1.2rem 1.3rem; box-shadow: var(--shadow);
+  }
+  .mech h3 { margin-bottom: .45rem; }
+  .mech p { font-size: .95rem; color: var(--ink-soft); margin: 0; }
+
+  /* Table */
+  .tbl-wrap { overflow-x: auto; margin-top: 1.6rem; border: 1px solid var(--rule); border-radius: 10px; }
+  table { border-collapse: collapse; width: 100%; min-width: 34rem; background: var(--card); }
+  th, td { text-align: left; padding: .8rem 1rem; border-bottom: 1px solid var(--rule-soft); font-size: .95rem; }
+  th { font-size: .68rem; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-faint); font-weight: 600; }
+  tr:last-child td { border-bottom: 0; }
+  td.num { font-variant-numeric: tabular-nums; font-family: 'IBM Plex Mono', monospace; font-size: .88rem; }
+  .chip {
+    display: inline-block; font-size: .62rem; font-weight: 600; letter-spacing: .08em;
+    text-transform: uppercase; padding: .28rem .55rem; border-radius: 999px; white-space: nowrap;
+  }
+  .chip.go   { background: var(--go-wash);   color: var(--go); }
+  .chip.warn { background: var(--warn-wash); color: var(--warn); }
+  .chip.stop { background: var(--stop-wash); color: var(--stop); }
+
+  /* Correction callout */
+  .callout {
+    border-left: 3px solid var(--stop); background: var(--stop-wash);
+    padding: 1.1rem 1.3rem; border-radius: 0 8px 8px 0; margin-top: 1.6rem;
+  }
+  .callout p { margin: 0; font-size: .97rem; }
+  .callout .eyebrow { color: var(--stop); display: block; margin-bottom: .4rem; }
+
+  /* Concepts */
+  .concept {
+    background: var(--card); border: 1px solid var(--rule); border-radius: 12px;
+    padding: 1.6rem 1.5rem 1.7rem; margin-top: 1.4rem; box-shadow: var(--shadow);
+    position: relative;
+  }
+  .concept.pick { border-color: var(--go); border-width: 2px; }
+  .concept-head { display: flex; align-items: baseline; gap: .8rem; flex-wrap: wrap; margin-bottom: .2rem; }
+  .concept h3 { font-size: 1.5rem; font-weight: 800; letter-spacing: -.02em; }
+  .verb { font-size: .7rem; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-faint);
+          font-family: 'IBM Plex Mono', monospace; }
+  .pitch { font-size: 1.05rem; color: var(--ink-soft); font-style: italic; margin: .5rem 0 1.1rem; max-width: 60ch; }
+  .spec { display: grid; grid-template-columns: auto 1fr; gap: .5rem 1.1rem; margin: 0; font-size: .93rem; }
+  .spec dt { font-size: .64rem; letter-spacing: .09em; text-transform: uppercase;
+             color: var(--ink-faint); padding-top: .28rem; white-space: nowrap; }
+  .spec dd { margin: 0; color: var(--ink-soft); }
+  .spec dd strong { color: var(--ink); }
+  @media (max-width: 34rem) {
+    .spec { grid-template-columns: 1fr; gap: .15rem; }
+    .spec dd { margin-bottom: .7rem; }
+  }
+
+  .src-list { font-size: .78rem; line-height: 1.9; color: var(--ink-faint); }
+  .src-list a { color: var(--ink-soft); text-decoration: underline; text-underline-offset: 2px; }
+  .src-list a:hover, .src-list a:focus-visible { color: var(--go); }
+  a:focus-visible { outline: 2px solid var(--go); outline-offset: 3px; border-radius: 2px; }
+  hr.end { border: 0; border-top: 2px solid var(--ink); margin: 4rem 0 1.2rem; }
+</style>
+
+<div class="wrap">
+
+  <header>
+    <span class="eyebrow">Market research · August 2026</span>
+    <h1>The Rack Engine</h1>
+    <p class="thesis">Every breakout mobile puzzle of the last eighteen months runs the same machine underneath the skin. <strong>It isn't the theme, and it isn't the verb — it's a container that fills up and kills you.</strong></p>
+  </header>
+
+  <div class="stats">
+    <div class="stat"><span class="stat-num">$4.9B</span><span class="stat-label">Puzzle player spend, H1 2026</span></div>
+    <div class="stat"><span class="stat-num">44%</span><span class="stat-label">Of all casual revenue</span></div>
+    <div class="stat"><span class="stat-num">+74%</span><span class="stat-label">Merge growth YoY</span></div>
+    <div class="stat"><span class="stat-num">~30%</span><span class="stat-label">Of monthly revenue from fail offers</span></div>
+    <div class="stat"><span class="stat-num">$0.95</span><span class="stat-label">Hybrid-casual CPI, up from $0.54</span></div>
+    <div class="stat"><span class="stat-num">20%</span><span class="stat-label">D1 retention floor — below this, no business</span></div>
+  </div>
+
+  <section>
+    <div class="sec-head">
+      <span class="eyebrow">The finding</span>
+      <h2>They all have a rack</h2>
+    </div>
+    <p>I went looking for what the current winners share. It is not genre and it is not art style. It is a <strong>limited holding area, always visible, that the player fills themselves</strong> — and when it overflows, the run ends.</p>
+    <ul class="rack-list">
+      <li><span class="rack-game">Pixel Flow</span><span class="rack-what">5 waiting slots on the conveyor rack</span></li>
+      <li><span class="rack-game">Screwdom</span><span class="rack-what">Limited bolt holders</span></li>
+      <li><span class="rack-game">Magic Sort</span><span class="rack-what">Limited tubes</span></li>
+      <li><span class="rack-game">Color Block Jam</span><span class="rack-what">Limited exit space</span></li>
+      <li><span class="rack-game">Hexa Sort</span><span class="rack-what">Limited board space</span></li>
+      <li><span class="rack-game">Match 3D</span><span class="rack-what">7 tray slots</span></li>
+    </ul>
+    <p style="margin-top:1.6rem">Six different verbs. One structure. That structure is the product; everything above it is skin.</p>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <span class="eyebrow">Why it works</span>
+      <h2>Four mechanisms, stacked</h2>
+    </div>
+    <div class="mechs">
+      <div class="mech">
+        <h3>You kill yourself</h3>
+        <p>The rack fills because of choices you made. Every loss is legibly your own fault, which converts frustration into <em>one more try</em> instead of uninstall.</p>
+      </div>
+      <div class="mech">
+        <h3>The near-miss never stops</h3>
+        <p>A visible rack at 5 of 7 fires the near-miss response continuously, not just at the end. This is the single most studied persistence mechanism in slot design.</p>
+      </div>
+      <div class="mech">
+        <h3>Loss aversion peaks on cue</h3>
+        <p>Failure lands at maximum sunk investment. That exact moment is where the <em>fail offer</em> sits — and fail offers drive over 20% of IAP revenue and 27% of all first purchases.</p>
+      </div>
+      <div class="mech">
+        <h3>Difficulty is honest</h3>
+        <p>These games get harder by getting genuinely harder, not by throttling energy. Analysts credit this for why they rarely tip into feeling unfair.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <span class="eyebrow">Where the room is</span>
+      <h2>Subgenre status</h2>
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr><th>Subgenre</th><th>Signal</th><th>Status</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Match-3</td><td class="num">$2.5B, 51% of puzzle</td><td><span class="chip stop">Intensely saturated</span></td></tr>
+          <tr><td>Sort / Screw / Block</td><td class="num">Carries most volume</td><td><span class="chip warn">Consolidating</span></td></tr>
+          <tr><td>Merge</td><td class="num">$1.3B, +74% YoY</td><td><span class="chip go">Fastest growing</span></td></tr>
+          <tr><td>Conveyor / flow</td><td class="num">Pixel Flow, then Yarn Loop, Sand Loop</td><td><span class="chip go">Live wave</span></td></tr>
+          <tr><td>Association</td><td class="num">Thin, unproven</td><td><span class="chip warn">Too early</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p style="margin-top:1.4rem">The conveyor wave is the one to note. Pixel Flow opened it, and <strong>Voodoo has already shipped its own entry (Sand Loop)</strong>. A publisher building in a space is a publisher buying in that space — and also a clock running down on how long it stays open.</p>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <span class="eyebrow">Correction</span>
+      <h2>I gave you the wrong monetization model</h2>
+    </div>
+    <div class="callout">
+      <span class="eyebrow">Revise the plan</span>
+      <p>I told you to design around rewarded ads. The data says hybrid-casual puzzle revenue splits roughly <strong>59% in-app purchases to 41% advertising</strong>. Ads are the minority. The design brief changes: you need an economy, a progression curve, and a fail offer — not just a "watch a video to continue" button.</p>
+    </div>
+    <p style="margin-top:1.6rem">The other number that moved: hybrid-casual CPI nearly doubled year over year, from $0.54 to $0.95 on Android, with some segments running $2.50–$6.00. Publishers are correspondingly less forgiving. D1 of 30–40% is the target band, D7 of 15–22% supports the economics, and below 20% D1 nothing else you do matters.</p>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <span class="eyebrow">The tension worth naming</span>
+      <h2>Novelty is not what gets funded</h2>
+    </div>
+    <p>You asked for out of the box, and the honest read of the data is uncomfortable: <strong>the winners are recombinations, not inventions.</strong> Magic Sort took a Water Sort core, wrapped it in premium presentation, and ran it as a pure-IAP product. Pixel Flow took a known interaction and found the version that monetized harder.</p>
+    <p>So the target isn't a brand new mechanic. It's <strong>a fresh verb and a fresh world bolted onto the proven rack engine</strong> — novel enough to be un-clonable, structurally proven enough to hit the retention bar. All three concepts below are built to that brief.</p>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <span class="eyebrow">Concepts</span>
+      <h2>Three built on the engine</h2>
+    </div>
+
+    <article class="concept pick">
+      <div class="concept-head">
+        <h3>Sticky Fingers</h3><span class="verb">verb: lift</span><span class="chip go">Recommended</span>
+      </div>
+      <p class="pitch">A hand lifts a watch off a wrist. The coat pocket bulges. The guard begins to turn around.</p>
+      <dl class="spec">
+        <dt>Core</dt><dd>Items drift past on a crowd. Tap to lift one into your coat.</dd>
+        <dt>The rack</dt><dd><strong>Six pockets</strong>, each fitting only certain shapes. Three of a kind merge away into the bag.</dd>
+        <dt>Pressure</dt><dd>Full pockets bulge visibly and raise a suspicion meter. Marked "hot" items raise it faster while held.</dd>
+        <dt>Fail offer</dt><dd><strong>"Bribe the guard."</strong> The fail offer is diegetic — it's the fiction, not a shop popup, which strips out the ick.</dd>
+        <dt>Meta</dt><dd>Fence the loot, buy bigger coats, unlock venues: museum, casino, cruise ship. A collection meta, far cheaper than Royal Match's renovation treadmill.</dd>
+        <dt>Build</dt><dd>~4 weeks at your pace. Slot logic plus a scroller. No physics.</dd>
+        <dt>Risk</dt><dd>Theme has to stay playful, or the suspicion meter reads as stressful rather than tense.</dd>
+      </dl>
+    </article>
+
+    <article class="concept">
+      <div class="concept-head">
+        <h3>Molten</h3><span class="verb">verb: pour</span><span class="chip warn">Safe pick</span>
+      </div>
+      <p class="pitch">Glowing glass pours between crucibles. Colors bloom, mix wrong once, and the batch is ruined.</p>
+      <dl class="spec">
+        <dt>Core</dt><dd>Sort liquids between vessels without contaminating them.</dd>
+        <dt>The rack</dt><dd>A limited set of crucibles — the Water Sort skeleton, unchanged because it works.</dd>
+        <dt>Why</dt><dd>This is the <strong>Magic Sort playbook run again</strong>: proven core, premium presentation, IAP-first. The differentiation is entirely visual, which is the part I can execute fastest.</dd>
+        <dt>Build</dt><dd>~3 weeks. Sort logic is trivial; the molten shader is the actual work.</dd>
+        <dt>Risk</dt><dd>Sort is consolidating. The art has to carry the whole pitch, with no mechanical novelty to fall back on.</dd>
+      </dl>
+    </article>
+
+    <article class="concept">
+      <div class="concept-head">
+        <h3>Fold</h3><span class="verb">verb: fold</span><span class="chip stop">Wildcard</span>
+      </div>
+      <p class="pitch">A finger drags a crease and the entire board folds over onto itself like paper. Matching tiles meet and annihilate.</p>
+      <dl class="spec">
+        <dt>Core</dt><dd>Fold the grid onto itself; overlapping matches vanish. Clear the board in N folds.</dd>
+        <dt>The rack</dt><dd><strong>It doesn't have one.</strong> That's the problem — folds remaining is a weaker pressure device than a filling container.</dd>
+        <dt>Why keep it</dt><dd>Genuinely nobody is doing it, and the fold animation is the best pure ad creative of the three.</dd>
+        <dt>Build</dt><dd>~4–5 weeks. Reflection maths is easy; the fold animation is the work.</dd>
+        <dt>Risk</dt><dd>Highest. Unproven against the retention benchmarks precisely because it lacks the engine every winner has.</dd>
+      </dl>
+    </article>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <span class="eyebrow">Recommendation</span>
+      <h2>Sticky Fingers</h2>
+    </div>
+    <p>It runs the proven engine, the verb and world are unclaimed, the fail offer is built into the fiction rather than bolted on, and it films in a single legible shot — a hand, a pocket, a guard turning. It is also the concept where the block-puzzle work already on the branch carries over most directly: grid, renderer, drag input, juice and audio all survive the swap.</p>
+  </section>
+
+  <hr class="end">
+  <p class="src-list">
+    Sources ·
+    <a href="https://mobidictum.com/casual-games-mobile-marketing-report-h1-2026/">Mobidictum, casual games H1 2026</a> ·
+    <a href="https://www.gamigion.com/hybridcasual-puzzles-turning-failure-into-revenue/">Gamigion, fail offers</a> ·
+    <a href="https://www.deconstructoroffun.com/blog/2025/2/3/hybridcasual-puzzles-expanding-the-puzzle-market">Deconstructor of Fun, why some puzzle games are more addicting</a> ·
+    <a href="https://www.deconstructoroffun.com/blog/pixel-flow-and-the-rise-of-sort-puzzles">Deconstructor of Fun, Pixel Flow</a> ·
+    <a href="https://mobidictum.com/sort-block-screw-mechanics-puzzle-games-market/">Mobidictum, sort/block/screw</a> ·
+    <a href="https://nextbiggames.com/2026/03/26/hybridcasual-puzzle-market-radar-33-trends/">HybridCasual Puzzle Market Radar #33</a> ·
+    <a href="https://foxdata.com/en/blogs/2026-mobile-game-user-acquisition-cost-benchmarks-how-much-should-you-spend/">FoxData, 2026 CPI benchmarks</a> ·
+    <a href="https://www.antiersolutions.com/blogs/hybrid-casual-games-vs-hypercasual-whats-driving-higher-retention-ltv-and-revenue-in-2026/">Antier, retention &amp; LTV 2026</a>
+  </p>
+</div>
