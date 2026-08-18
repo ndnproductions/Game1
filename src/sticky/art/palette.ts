@@ -53,8 +53,6 @@ export const font = {
     `${Math.round(px)}px Anton, Impact, "Arial Narrow", sans-serif`,
   ui: (weight: number, px: number): string =>
     `${weight} ${Math.round(px)}px Outfit, system-ui, -apple-system, sans-serif`,
-  glyph: (px: number): string =>
-    `${Math.round(px)}px "Apple Color Emoji", "Noto Color Emoji", "Segoe UI Emoji", sans-serif`,
 }
 
 export function roundRect(
@@ -69,4 +67,13 @@ export function roundRect(
   ctx.arcTo(x, y + h, x, y, rr)
   ctx.arcTo(x, y, x + w, y, rr)
   ctx.closePath()
+}
+
+/** Lighten (positive) or darken (negative) a hex colour by a ratio. */
+export function shade(hex: string, amount: number): string {
+  const n = parseInt(hex.slice(1), 16)
+  const mix = (c: number): number => Math.max(0, Math.min(255, Math.round(
+    amount >= 0 ? c + (255 - c) * amount : c * (1 + amount),
+  )))
+  return `rgb(${mix((n >> 16) & 255)},${mix((n >> 8) & 255)},${mix(n & 255)})`
 }

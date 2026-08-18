@@ -3,6 +3,7 @@ import type { Mark, LiftResult, Stashed, Phase } from './game'
 import { MAX_POCKETS } from './game'
 import { Renderer } from './render'
 import { ITEM_KINDS } from './items'
+import { drawIcon } from './art/icons'
 import {
   unlockAudio, playPickUp, playClear, playInvalid, playGameOver, vibrate,
 } from '../audio'
@@ -32,7 +33,7 @@ function reportStash(stashed: Stashed): void {
   playClear(stashed.goalComplete ? 3 : 2, 0)
   vibrate([0, 16, 36, 20])
   renderer.popup(
-    stashed.goalComplete ? `${kind.glyph} DONE` : `${kind.glyph} STASHED`,
+    stashed.goalComplete ? `${kind.label.toUpperCase()} DONE` : `${kind.label.toUpperCase()} STASHED`,
     L.w / 2, L.pocketY - L.pad * 2,
     stashed.goalComplete ? '#4ade80' : '#ffd93d',
   )
@@ -192,9 +193,11 @@ declare global {
     __stickyRenderer?: Renderer
     __itemKinds?: typeof ITEM_KINDS
     __stagePlan?: typeof stagePlan
+    __drawIcon?: typeof drawIcon
   }
 }
 window.__sticky = game
 window.__stickyRenderer = renderer
 window.__itemKinds = ITEM_KINDS
 window.__stagePlan = stagePlan
+window.__drawIcon = drawIcon

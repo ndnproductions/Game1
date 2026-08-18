@@ -33,6 +33,12 @@ again flat on top. Rim colour doubles as the awareness tell — green for
 distracted, blue for neutral, red for alert. Type is Anton for display and
 Outfit for UI, both with real fallback stacks.
 
+Loot is drawn from `art/icons.ts` as canvas paths rather than emoji. Emoji
+render differently on every platform, go missing on some, and pick up whatever
+`fillStyle` the context was left holding — on iOS all three combined to render
+the tokens empty. Each icon is authored in a unit box and scaled, so weights
+hold at any size, and junk is drawn grey rather than as a dimmed brand colour.
+
 ```sh
 npm run dev                    # block puzzle
 GAME=sticky npm run dev        # sticky fingers

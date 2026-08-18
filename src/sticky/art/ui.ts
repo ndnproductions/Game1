@@ -1,4 +1,6 @@
 import { P, withAlpha, roundRect, font } from './palette'
+import { drawIcon } from './icons'
+import type { IconId } from './icons'
 
 /** A raised panel: soft drop shadow, vertical gradient, lit top edge. */
 export function panel(
@@ -75,7 +77,7 @@ export function meter(
 export function lootBubble(
   ctx: CanvasRenderingContext2D,
   x: number, y: number, r: number,
-  glyph: string, color: string,
+  icon: IconId, color: string,
   opts: { wanted: boolean; hot: boolean; time: number },
 ): void {
   ctx.save()
@@ -87,7 +89,7 @@ export function lootBubble(
     ctx.fillStyle = glow
     ctx.fillRect(x - r * 2.1, y - r * 2.1, r * 4.2, r * 4.2)
   } else {
-    ctx.globalAlpha = 0.42
+    ctx.globalAlpha = 0.52
   }
 
   if (opts.hot && opts.wanted) {
@@ -121,10 +123,7 @@ export function lootBubble(
     ctx.stroke()
   }
 
-  ctx.textAlign = 'center'
-  ctx.textBaseline = 'middle'
-  ctx.font = font.glyph(r * 1.12)
-  ctx.fillText(glyph, x, y + r * 0.06)
+  drawIcon(ctx, icon, x, y, r * 1.24, opts.wanted ? color : P.junk)
   ctx.restore()
 }
 

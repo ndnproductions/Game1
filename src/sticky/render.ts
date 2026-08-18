@@ -5,6 +5,7 @@ import { P, LOOT, withAlpha, roundRect, font } from './art/palette'
 import { Scene } from './art/scene'
 import { drawFigure } from './art/figures'
 import { panel, meter, lootBubble, button, label } from './art/ui'
+import { drawIcon } from './art/icons'
 import type { ButtonBox } from './art/ui'
 import { Particles } from './art/particles'
 
@@ -184,7 +185,7 @@ export class Renderer {
     if (!mark.item) return
     const b = this.bubblePos(mark)
     const kind = ITEM_KINDS[mark.item.kind]
-    lootBubble(this.ctx, b.x, b.y, b.r, kind.glyph, kind.color, {
+    lootBubble(this.ctx, b.x, b.y, b.r, kind.icon, kind.color, {
       wanted: game.isWanted(mark.item.kind),
       hot: mark.item.hot,
       time: this.time,
@@ -200,7 +201,7 @@ export class Renderer {
       const arc = Math.sin(p * Math.PI) * L.laneH * 0.22
       const y = fx.from.y + (to.y + to.h / 2 - fx.from.y) * p - arc
       const kind = ITEM_KINDS[fx.item.kind]
-      lootBubble(this.ctx, x, y, L.bubbleR * (1 - p * 0.3), kind.glyph, kind.color,
+      lootBubble(this.ctx, x, y, L.bubbleR * (1 - p * 0.3), kind.icon, kind.color,
                  { wanted: true, hot: fx.item.hot, time: this.time })
     }
   }
@@ -274,10 +275,7 @@ export class Renderer {
 
       ctx.save()
       ctx.globalAlpha = done ? 0.5 : 1
-      ctx.textAlign = 'left'
-      ctx.textBaseline = 'middle'
-      ctx.font = font.glyph(r.h * 0.44)
-      ctx.fillText(kind.glyph, r.x + r.w * 0.09, r.y + r.h * 0.43)
+      drawIcon(ctx, kind.icon, r.x + r.w * 0.19, r.y + r.h * 0.44, r.h * 0.52, kind.color)
       ctx.restore()
 
       ctx.textAlign = 'right'
@@ -382,10 +380,8 @@ export class Renderer {
 
     ctx.save()
     ctx.globalAlpha = wanted ? 1 : 0.42
-    ctx.textAlign = 'center'
-    ctx.textBaseline = 'middle'
-    ctx.font = font.glyph(Math.min(r.w, r.h) * 0.48)
-    ctx.fillText(kind.glyph, r.x + r.w / 2, r.y + r.h * 0.44)
+    drawIcon(ctx, kind.icon, r.x + r.w / 2, r.y + r.h * 0.44,
+             Math.min(r.w, r.h) * 0.56, wanted ? kind.color : P.junk)
     ctx.restore()
 
     if (!wanted) {
