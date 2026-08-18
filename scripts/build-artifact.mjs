@@ -5,10 +5,10 @@
 import { readFileSync, writeFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 
-const DIST = 'dist'
+const DIST = process.env.DIST ?? 'dist'
 const TITLE = process.env.TITLE ?? 'Blockwright'
 
-const html = readFileSync(join(DIST, 'index.html'), 'utf8')
+const html = readFileSync(join(DIST, process.env.HTML ?? 'index.html'), 'utf8')
 
 const styleMatch = html.match(/<style>([\s\S]*?)<\/style>/)
 if (!styleMatch) throw new Error('no <style> block found in dist/index.html')
@@ -31,4 +31,4 @@ ${safeJs}
 `
 
 writeFileSync(join(DIST, 'artifact.html'), out)
-console.log(`dist/artifact.html  ${(out.length / 1024).toFixed(1)} kB`)
+console.log(`${join(DIST, 'artifact.html')}  ${(out.length / 1024).toFixed(1)} kB`)
