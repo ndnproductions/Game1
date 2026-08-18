@@ -152,6 +152,25 @@ window.addEventListener('orientationchange', onResize)
 window.visualViewport?.addEventListener('resize', onResize)
 
 let last = performance.now()
+
+/**
+ * Canvas measures text against whatever font is resolved at draw time, so the
+ * first frames would be laid out in the fallback and visibly reflow. Wait for
+ * the real faces, but never block on a slow network for more than a moment.
+ */
+async function waitForFonts(): Promise<void> {
+  const fonts = (document as Document & { fonts?: FontFaceSet }).fonts
+  if (!fonts) return
+  try {
+    await Promise.race([
+      Promise.all([fonts.load('400 40px Anton'), fonts.load('700 20px Outfit')]),
+      new Promise((resolve) => setTimeout(resolve, 1200)),
+    ])
+  } catch {
+    // Fallback stacks are declared on every font string; carry on.
+  }
+}
+
 function frame(now: number): void {
   const dt = Math.min((now - last) / 1000, 0.05)
   last = now
@@ -162,7 +181,10 @@ function frame(now: number): void {
   renderer.draw(game, dt)
   requestAnimationFrame(frame)
 }
-requestAnimationFrame(frame)
+void waitForFonts().then(() => {
+  last = performance.now()
+  requestAnimationFrame(frame)
+})
 
 declare global {
   interface Window {

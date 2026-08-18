@@ -13,6 +13,10 @@ const html = readFileSync(join(DIST, process.env.HTML ?? 'index.html'), 'utf8')
 const styleMatch = html.match(/<style>([\s\S]*?)<\/style>/)
 if (!styleMatch) throw new Error('no <style> block found in dist/index.html')
 
+// Font stylesheets are the one external request the publish target allows, so
+// carry any <link> tags through rather than dropping them with the rest of head.
+const links = [...html.matchAll(/<link\b[^>]*>/g)].map((m) => m[0]).join('\n')
+
 const assets = readdirSync(join(DIST, 'assets')).filter((f) => f.endsWith('.js'))
 if (assets.length !== 1) throw new Error(`expected exactly one JS asset, got ${assets.length}`)
 
@@ -21,6 +25,7 @@ const js = readFileSync(join(DIST, 'assets', assets[0]), 'utf8')
 const safeJs = js.replaceAll('</script>', '<\\/script>')
 
 const out = `<title>${TITLE}</title>
+${links}
 <style>
 ${styleMatch[1].trim()}
 </style>

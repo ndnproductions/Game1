@@ -23,6 +23,16 @@ off a moving crowd before one shared clock runs out.
 
 There is no score. Progression is the stage number.
 
+### Art
+
+Everything is drawn procedurally — no image assets. The street is a baked
+offscreen backdrop (skyline, lit windows, lamp haloes, wet reflections) with
+drifting fog and rain composited over it, and the crowd are silhouettes lit by
+a cheap two-pass rim: the body is filled once offset in the rim colour, then
+again flat on top. Rim colour doubles as the awareness tell — green for
+distracted, blue for neutral, red for alert. Type is Anton for display and
+Outfit for UI, both with real fallback stacks.
+
 ```sh
 npm run dev                    # block puzzle
 GAME=sticky npm run dev        # sticky fingers
@@ -65,6 +75,7 @@ clone without a hook, which is why the work moved to Sticky Fingers.
 | Path | Role |
 |---|---|
 | `src/sticky/` | Sticky Fingers — game logic, renderer, input |
+| `src/sticky/art/` | Palette, street scene, figures, UI chrome, particles |
 | `src/core/` | Block puzzle logic — grid, pieces, state machine |
 | `src/render/`, `src/input/` | Block puzzle renderer and drag handling |
 | `src/audio.ts` | Oscillator-based sound, shared, no assets |

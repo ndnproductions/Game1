@@ -6,7 +6,7 @@ const MIN_POCKETS = 4
 /** Three depth rows: back, middle, front. */
 export const ROW_SCALE = [0.7, 0.85, 1]
 export const ROW_GROUND = [0.34, 0.62, 0.92]
-export const ROW_ALPHA = [0.55, 0.78, 1]
+export const ROW_ALPHA = [0.72, 0.88, 1]
 
 /**
  * Most a single stash can carry, which also caps how many pockets one kind can
@@ -312,7 +312,12 @@ export class StickyGame {
   }
 
   private spawn(viewWidth: number): void {
-    const row = Math.floor(Math.random() * 3)
+    // Pick a row that has room at the entrance; two marks stacked at the same
+    // depth read as one smeared figure and their loot tokens overlap.
+    const rows = [0, 1, 2].filter((r) =>
+      !this.marks.some((m) => m.row === r && m.x > viewWidth + 5))
+    if (!rows.length) return
+    const row = rows[Math.floor(Math.random() * rows.length)]
     const owed = this.goals.filter((g) => g.secured < g.need).map((g) => g.kind)
     // Enough of what the job needs to be chaseable, enough junk that grabbing
     // on reflex is punished.
