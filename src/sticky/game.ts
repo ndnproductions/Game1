@@ -1,4 +1,6 @@
 import { ITEM_KINDS, BODY_COLORS } from './items'
+import type { Archetype } from './art/sprites'
+import { WALKING_CAST } from './art/sprites'
 
 /** Coat slots drawn on screen. Late stages sew some of them shut. */
 export const MAX_POCKETS = 6
@@ -40,6 +42,7 @@ export interface CarriedItem {
 
 export interface Mark {
   id: number
+  archetype: Archetype
   x: number
   row: number
   speed: number
@@ -330,9 +333,10 @@ export class StickyGame {
 
     const m: Mark = {
       id: this.nextId++,
+      archetype: WALKING_CAST[Math.floor(Math.random() * WALKING_CAST.length)],
       x: viewWidth + 60,
       row,
-      speed: this.walkSpeed * (0.9 + Math.random() * 0.25) * (0.72 + row * 0.14),
+      speed: this.walkSpeed * (0.94 + Math.random() * 0.12) * (0.72 + row * 0.14),
       bodyColor: BODY_COLORS[Math.floor(Math.random() * BODY_COLORS.length)],
       scale: ROW_SCALE[row],
       bobPhase: Math.random() * Math.PI * 2,

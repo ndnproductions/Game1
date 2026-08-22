@@ -6,6 +6,7 @@ import { Scene } from './art/scene'
 import { drawFigure } from './art/figures'
 import { panel, meter, lootBubble, button, label } from './art/ui'
 import { drawIcon } from './art/icons'
+import { getSprite } from './art/sprites'
 import type { ButtonBox } from './art/ui'
 import { Particles } from './art/particles'
 
@@ -109,7 +110,12 @@ export class Renderer {
     const bob = Math.sin(mark.bobPhase) * 2.5 * mark.scale
     const gy = this.groundY(mark.row) + bob
     const r = this.layout.bubbleR * mark.scale
-    return { x: mark.x, y: gy - this.figureH(mark) - r * 0.72, r }
+    // A painted sprite stands taller than the procedural torso metric, so
+    // the loot token rides higher to clear the head.
+    const top = getSprite(mark.archetype)
+      ? this.figureH(mark) * 1.55
+      : this.figureH(mark) + r * 0.1
+    return { x: mark.x, y: gy - top - r * 0.72, r }
   }
 
   goalRect(i: number, count: number): ButtonBox {
@@ -171,16 +177,23 @@ export class Renderer {
   }
 
   private drawMark(mark: Mark, game: StickyGame): void {
-    drawFigure(this.ctx, {
-      id: mark.id,
-      x: mark.x,
-      groundY: this.groundY(mark.row) + Math.sin(mark.bobPhase) * 2.5 * mark.scale,
-      height: this.figureH(mark),
-      walkPhase: mark.bobPhase,
-      awareness: mark.awareness,
-      alpha: ROW_ALPHA[mark.row],
-      time: this.time,
-    })
+    const groundY = this.groundY(mark.row) + Math.sin(mark.bobPhase) * 2.5 * mark.scale
+    const sprite = getSprite(mark.archetype)
+
+    if (sprite) {
+      this.drawSpriteMark(mark, sprite.img, groundY)
+    } else {
+      drawFigure(this.ctx, {
+        id: mark.id,
+        x: mark.x,
+        groundY,
+        height: this.figureH(mark),
+        walkPhase: mark.bobPhase,
+        awareness: mark.awareness,
+        alpha: ROW_ALPHA[mark.row],
+        time: this.time,
+      })
+    }
 
     if (!mark.item) return
     const b = this.bubblePos(mark)
@@ -190,6 +203,51 @@ export class Renderer {
       hot: mark.item.hot,
       time: this.time,
     })
+  }
+
+  /**
+   * A painted sprite, bottom-anchored on the ground line with a contact
+   * shadow and a gentle walk sway. Awareness stays readable as the halo
+   * behind the figure, so the art itself never needs recolouring.
+   */
+  private drawSpriteMark(mark: Mark, img: HTMLImageElement, groundY: number): void {
+    const { ctx } = this
+    // Sprites include the full body head-to-toe, so they stand taller than
+    // the procedural torso metric.
+    const h = this.figureH(mark) * 1.55
+    const w = h * (img.width / img.height)
+    const sway = Math.sin(mark.bobPhase) * 0.045
+
+    ctx.save()
+    ctx.globalAlpha = ROW_ALPHA[mark.row]
+
+    const sh = ctx.createRadialGradient(mark.x, groundY, 0, mark.x, groundY, h * 0.24)
+    sh.addColorStop(0, 'rgba(0,0,0,0.45)')
+    sh.addColorStop(1, 'rgba(0,0,0,0)')
+    ctx.fillStyle = sh
+    ctx.save()
+    ctx.translate(mark.x, groundY)
+    ctx.scale(1, 0.24)
+    ctx.beginPath()
+    ctx.arc(0, 0, h * 0.24, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.restore()
+
+    if (mark.awareness !== 'neutral') {
+      const pulse = mark.awareness === 'alert' ? 0.5 + 0.5 * Math.sin(this.time * 6) : 0.35
+      const color = mark.awareness === 'alert' ? '255,92,122' : '74,222,128'
+      const hy = groundY - h * 0.82
+      const halo = ctx.createRadialGradient(mark.x, hy, 0, mark.x, hy, h * 0.3)
+      halo.addColorStop(0, `rgba(${color},${0.3 + pulse * 0.3})`)
+      halo.addColorStop(1, `rgba(${color},0)`)
+      ctx.fillStyle = halo
+      ctx.fillRect(mark.x - h * 0.3, hy - h * 0.3, h * 0.6, h * 0.6)
+    }
+
+    ctx.translate(mark.x, groundY)
+    ctx.rotate(sway)
+    ctx.drawImage(img, -w / 2, -h, w, h)
+    ctx.restore()
   }
 
   private drawLifts(game: StickyGame): void {
