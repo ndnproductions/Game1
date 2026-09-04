@@ -110,6 +110,37 @@ npm run build:levels     # rebake src/sunspot/levels.json
 Generation takes ~230ms per board, far too slow to run on a phone at launch, so
 levels ship as data. Only the daily puzzle is generated on device.
 
+### The app
+
+`app/` is the Flutter build — the real target, since a tap-grid logic puzzle is
+a UI app rather than a real-time game.
+
+| Path | Role |
+|---|---|
+| `app/lib/model/` | Puzzle, board rules, level pack, stage ladder |
+| `app/lib/theme/` | Palette and the layer-stack decorations |
+| `app/lib/widgets/` | Cat painter, 3D button, plate, meter, board grid |
+| `app/lib/screens/` | Board and stage map |
+| `app/assets/levels.json` | The baked pack, copied from `src/sunspot/` |
+
+```sh
+cd app
+flutter test       # 20 tests: rules, the baked pack, and widget behaviour
+flutter analyze
+flutter run
+```
+
+The board grid draws a dark line along every edge where two beams meet.
+The glossy-tile look drops the heavy outline the flat design had, and on a
+match-3 that is fine because colour is only decoration there. Here the beam
+boundary *is* the rule, and ten glossy pastels are not distinguishable to a
+colourblind player — so the grout goes back in, drawn in the gaps between tiles.
+
+`levels_test.dart` re-audits the shipped pack from the app's own side: the
+TypeScript engine proves uniqueness when a level is baked, and this proves the
+app parses that same file into a board that holds together, with sizes and
+chapters matching the curve.
+
 ## Sticky Fingers — parked
 
 A stage-based pickpocket game. Each stage is a job: a list of goods to lift
@@ -185,6 +216,7 @@ clone without a hook, which is why the work moved to Sticky Fingers.
 
 | Path | Role |
 |---|---|
+| `app/` | The Flutter game — board, stage map, theme |
 | `src/sunspot/` | Sunspot — puzzle engine, solver, generator |
 | `src/sticky/` | Sticky Fingers — game logic, renderer, input |
 | `src/sticky/art/` | Palette, street scene, figures, UI chrome, particles |

@@ -1,0 +1,34 @@
+name: sunspot
+description: A cozy cat logic puzzle — one cat per row, column and sunbeam.
+publish_to: "none"
+version: 0.1.0
+
+environment:
+  sdk: ^3.5.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/levels.json
+  fonts:
+    - family: Baloo2
+      fonts:
+        - asset: assets/fonts/Baloo2-700.ttf
+          weight: 700
+        - asset: assets/fonts/Baloo2-800.ttf
+          weight: 800
+    - family: Nunito
+      fonts:
+        - asset: assets/fonts/Nunito-700.ttf
+          weight: 700
+        - asset: assets/fonts/Nunito-800.ttf
+          weight: 800
