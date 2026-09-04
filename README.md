@@ -1,11 +1,93 @@
 # Game1
 
-Two mobile-first prototypes exploring the same question: what makes a casual
-puzzle game hold someone. See [`docs/PLAN.md`](docs/PLAN.md) for the
-monetization strategy and [`docs/research.html`](docs/research.html) for the
-market research the current design is built on.
+Mobile-first prototypes exploring the same question: what makes a casual puzzle
+game hold someone. See [`docs/PLAN.md`](docs/PLAN.md) for the monetization
+strategy and [`docs/research.html`](docs/research.html) for the market research.
 
-## Sticky Fingers — the active prototype
+## Sunspot — the active work
+
+A cozy Queens-style logic puzzle. Eight cats claim eight sunbeams on a grid: one
+cat per beam, one per row, one per column, and no two cats in touching squares —
+diagonals included. Visual direction and a playable board are in the design
+artifact; `src/sunspot/` holds the engine.
+
+The genre is a UI app, not a real-time game, so the build target is Flutter
+rather than the Unity route in [`docs/unity.html`](docs/unity.html). None of the
+engine below is Flutter-specific — it is plain logic, and the port to Dart is
+mechanical.
+
+### The generator is the whole game
+
+Everything that makes this genre good or garbage lives in puzzle quality, and
+the constraint is absolute: **the player must never have to guess.** Two
+separate gates enforce it.
+
+| Gate | What it proves |
+|---|---|
+| `solutionsOf()` in `board.ts` | Exhaustive search finds exactly one solution |
+| `deduce()` in `solver.ts` | Five human rules alone finish the board |
+
+A puzzle that passes only the first is solvable by brute force and miserable to
+play. Both gates must pass or the board is discarded.
+
+### Why generation needs a repair pass
+
+Random beams essentially never produce a unique board. Measured over 3000
+randomly grown boards, **not one had a single solution** — every one had three or
+more. Generate-and-retry therefore never terminates, which is the trap that
+produces the guessing complaints all over this genre's app-store reviews.
+
+So the generator repairs instead of retries. Take an unwanted solution, and move
+one of its squares into a beam that same solution already uses. That forces two
+cats into one beam and kills that solution outright. Repeat until only the
+intended one survives.
+
+### Why there is a second pass after that
+
+Repair stops the instant a board becomes unique — which is exactly the *hardest*
+a board can be, because every remaining deduction is load-bearing. Without a
+second pass every generated board comes out at the top tier and the game has no
+easy levels at all. So `ease()` keeps reshaping past uniqueness, accepting any
+move that lowers the difficulty while uniqueness holds.
+
+### Difficulty
+
+The tier is set by the most advanced rule the solve actually needs.
+
+| Tier | Hardest rule required | Typical score |
+|---|---|---|
+| `gentle` | Only-square | ~8 |
+| `warm` | A row locks a beam, or a beam locks a row | ~17 |
+| `bright` | Crowding — every square a unit has left touches some square X, so X is out | ~26 |
+| `blazing` | Paired beams — k beams confined to k rows consume those rows | ~34 |
+
+One consequence worth knowing: a `gentle` board needs a **one-square beam**,
+because `only-square` cannot fire on the opening move without one. That is not a
+flaw to design around — it is the genre's standard teaching device. Minimum beam
+size is therefore tied to the tier in `MIN_BEAM`.
+
+### Layout
+
+| Path | Role |
+|---|---|
+| `src/sunspot/types.ts` | Shared types |
+| `src/sunspot/rng.ts` | Seeded RNG — identical on every platform, which the daily depends on |
+| `src/sunspot/board.ts` | Geometry, connectivity, exhaustive solution counting |
+| `src/sunspot/solver.ts` | The five human deduction rules, and difficulty rating |
+| `src/sunspot/generator.ts` | Placement, beam growth, repair, ease |
+| `src/sunspot/curve.ts` | The level ladder |
+| `src/sunspot/daily.ts` | Daily puzzle derived from the date — no backend, no accounts |
+| `src/sunspot/levels.json` | 120 baked levels, verified |
+
+```sh
+npm run test:sunspot     # full self-test, including all 365 days of 2026
+npm run build:levels     # rebake src/sunspot/levels.json
+```
+
+Generation takes ~230ms per board, far too slow to run on a phone at launch, so
+levels ship as data. Only the daily puzzle is generated on device.
+
+## Sticky Fingers — parked
 
 A stage-based pickpocket game. Each stage is a job: a list of goods to lift
 off a moving crowd before one shared clock runs out.
@@ -72,7 +154,7 @@ on time pressure — it only starts dying to the clock at stage 50.
 
 ## Block Roguelite — parked
 
-The earlier Block Blast-style prototype: 8×8 board, three-piece tray,
+The earliest Block Blast-style prototype: 8×8 board, three-piece tray,
 drag-to-place, row and column clearing. Complete and playable, but it was a
 clone without a hook, which is why the work moved to Sticky Fingers.
 
@@ -80,6 +162,7 @@ clone without a hook, which is why the work moved to Sticky Fingers.
 
 | Path | Role |
 |---|---|
+| `src/sunspot/` | Sunspot — puzzle engine, solver, generator |
 | `src/sticky/` | Sticky Fingers — game logic, renderer, input |
 | `src/sticky/art/` | Palette, street scene, figures, UI chrome, particles |
 | `src/core/` | Block puzzle logic — grid, pieces, state machine |

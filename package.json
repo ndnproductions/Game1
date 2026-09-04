@@ -9,7 +9,9 @@
     "preview": "vite preview",
     "build:artifact": "npm run build && node scripts/build-artifact.mjs",
     "build:sticky": "tsc --noEmit && GAME=sticky vite build",
-    "build:artifact:sticky": "npm run build:sticky && DIST=dist-sticky HTML=sticky.html TITLE=\"Sticky Fingers\" node scripts/build-artifact.mjs"
+    "build:artifact:sticky": "npm run build:sticky && DIST=dist-sticky HTML=sticky.html TITLE=\"Sticky Fingers\" node scripts/build-artifact.mjs",
+    "test:sunspot": "node --experimental-strip-types src/sunspot/selftest.ts",
+    "build:levels": "node --experimental-strip-types scripts/build-levels.mjs"
   },
   "devDependencies": {
     "typescript": "^5.6.3",
