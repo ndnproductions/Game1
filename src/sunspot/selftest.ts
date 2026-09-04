@@ -2,7 +2,7 @@ import type { Puzzle, RegionMap, Tier } from './types.ts'
 import { countSolutions, isConnected, regionCells, sameSolution } from './board.ts'
 import { makeRng } from './rng.ts'
 import { TIER_INDEX, deduce } from './solver.ts'
-import { generate, generateInTier } from './generator.ts'
+import { generate, generateAlways, generateInTier } from './generator.ts'
 import { dailyPuzzle, dailySeed } from './daily.ts'
 
 let failures = 0
@@ -127,9 +127,12 @@ console.log('\ngenerator')
 
 console.log('\nboard sizes')
 {
-  for (const n of [6, 7, 9]) {
-    const p = generate(n, 99 + n, { tries: 300 })
-    check(`generates a ${n}x${n} board`, p !== null && audit(p) === null, p === null ? 'gave up' : (audit(p) ?? ''))
+  // The three sizes the stage ladder ships, through the same call buildLevel uses.
+  // A single seed is not enough at 10x10 — generateAlways walks seeds, which is
+  // exactly why the level pack never has a gap.
+  for (const n of [6, 8, 10]) {
+    const p = generateAlways(n, 99 + n, n >= 10 ? { tries: 25, easeBudget: 40 } : {})
+    check(`generates a ${n}x${n} board`, audit(p) === null, audit(p) ?? '')
   }
 }
 

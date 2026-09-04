@@ -50,6 +50,29 @@ second pass every generated board comes out at the top tier and the game has no
 easy levels at all. So `ease()` keeps reshaping past uniqueness, accepting any
 move that lowers the difficulty while uniqueness holds.
 
+### The stage ladder
+
+Board size steps 6 → 8 → 10, and each size climbs its own tier ladder before the
+next size opens. Jumping to a bigger board is already a step up, so the rules
+relax at each size change and then climb again.
+
+| Stages | Chapter | Board | Hardest rule needed |
+|---|---|---|---|
+| 1–25 | The Sunroom | 6×6 | Only-square, then row-locks-beam |
+| 26–90 | The Garden | 8×8 | Row-locks-beam → crowding → paired beams |
+| 91+ | The Attic | 10×10 | Row-locks-beam → crowding → paired beams |
+
+Size and deduction depth are the only two levers that genuinely make a board
+harder. Blocked squares are the obvious-looking third and they do not work:
+removing candidate squares only shrinks the search, so a board with props on it
+is strictly *easier* than the same board without them. Props are decoration.
+The one mechanic that would genuinely add difficulty is a beam that needs two
+cats — worth building for a fourth chapter, not before.
+
+10×10 generation is roughly an order of magnitude slower than 8×8, so
+`buildLevel` gives the big boards a smaller ease budget and leans on seed-walking
+instead of long hill-climbs.
+
 ### Difficulty
 
 The tier is set by the most advanced rule the solve actually needs.
@@ -75,9 +98,9 @@ size is therefore tied to the tier in `MIN_BEAM`.
 | `src/sunspot/board.ts` | Geometry, connectivity, exhaustive solution counting |
 | `src/sunspot/solver.ts` | The five human deduction rules, and difficulty rating |
 | `src/sunspot/generator.ts` | Placement, beam growth, repair, ease |
-| `src/sunspot/curve.ts` | The level ladder |
+| `src/sunspot/curve.ts` | The stage ladder — sizes, tiers and chapters |
 | `src/sunspot/daily.ts` | Daily puzzle derived from the date — no backend, no accounts |
-| `src/sunspot/levels.json` | 120 baked levels, verified |
+| `src/sunspot/levels.json` | 110 baked levels, verified |
 
 ```sh
 npm run test:sunspot     # full self-test, including all 365 days of 2026
